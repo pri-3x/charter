@@ -455,12 +455,25 @@
         color: rgba(242, 240, 234, 0.42);
         font-size: 10px;
       }
+      /* No ledger behind the page: drop the reserved panel height so the section is four captions
+         rather than four empty frames. */
+      .ascii-grid.empty .ascii {
+        min-height: 0;
+      }
+      .ascii-grid.empty figcaption {
+        border-top: 0;
+        padding-top: 0;
+      }
+
       @media (max-width: 860px) {
         .ascii-grid {
           grid-template-columns: minmax(0, 1fr);
         }
         .ascii {
           min-height: 220px;
+        }
+        .ascii-grid.empty .ascii {
+          min-height: 0;
         }
       }
 
@@ -967,9 +980,12 @@
         <div class="sec-head">
           <p class="eyebrow"><span class="n">03</span> The decision</p>
           <h2>Watch it decide, live.</h2>
+          <!-- Worded to stay true whether or not a gate is behind the page: hosted with nothing
+               behind it, this section stays empty rather than showing invented rows. -->
           <p class="lede">
-            Nothing below is a mock-up. Each row is a real HTTP call to the gate running on this
-            machine, and each one leaves a permanent entry in the ledger.
+            Nothing here is a mock-up. Every row is a real HTTP call to a running gate, and each one
+            leaves a permanent entry in the ledger — so this fills in only when Charter is actually
+            running behind the page.
           </p>
         </div>
 
@@ -2209,6 +2225,20 @@
         { threshold: 0.2 },
       ).observe(document.getElementById("flow"));
 
+      // Backstop for the no-gate case. A backgrounded tab never delivers intersection callbacks, so
+      // without this the header sits on "Connecting to the gate" forever — which reads as a hang
+      // rather than as the honest "there is nothing behind this page" that loop() already handles.
+      setTimeout(() => {
+        if (seen === 0 && !running) {
+          loadCreds().then((c) => {
+            if (!c) {
+              lHead.textContent = "Static copy — run Charter locally and this decides for real";
+              lDot.classList.add("off");
+            }
+          });
+        }
+      }, 4000);
+
       /* ------------------------------------------------------- the compliance report (the real one) */
       document.getElementById("reportBtn")?.addEventListener("click", async () => {
         const rn = document.getElementById("reportNote");
@@ -2455,10 +2485,18 @@
           if (capOf[name]) capOf[name].textContent = caption;
         }
 
+        // Hosted with no gate behind it there is no ledger to draw, and four 384px-tall empty boxes
+        // read as a rendering failure. Collapse them and say why instead of inventing shapes.
+        function unavailable(note) {
+          grid.classList.add("empty");
+          Object.values(pre).forEach((el) => (el.textContent = ""));
+          Object.values(capOf).forEach((el) => (el.textContent = note));
+        }
+
         async function render() {
           const c = await loadCreds();
           if (!c?.admin) {
-            Object.values(capOf).forEach((el) => (el.textContent = "available when Charter runs locally"));
+            unavailable("nothing behind this page — run Charter locally to draw it");
             return;
           }
           const auth = { Authorization: "Bearer " + c.admin };
@@ -2473,7 +2511,7 @@
             entries = le.entries || [];
             checkpoints = cs.checkpoints || [];
           } catch {
-            Object.values(capOf).forEach((el) => (el.textContent = "could not read the ledger"));
+            unavailable("could not read the ledger");
             return;
           }
 

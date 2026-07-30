@@ -11,3 +11,4 @@ coverage/
 demo-attestation.html
 *.log
 .DS_Store
+dist-web/
