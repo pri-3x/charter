@@ -3,7 +3,6 @@
   "buildCommand": "node scripts/build-static.mjs",
   "outputDirectory": "dist-web",
   "installCommand": "echo 'no install needed for the static site'",
-  "trailingSlash": false,
   "headers": [
     {
       "source": "/(.*)",
