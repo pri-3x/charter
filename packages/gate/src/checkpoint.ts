@@ -1,0 +1,86 @@
+import { readFileSync, appendFileSync } from "node:fs";
+import { createPrivateKey, sign as cryptoSign } from "node:crypto";
+import { ulid } from "ulid";
+import { canonicalize } from "@mandate/shared";
+import type { Pool } from "./db.js";
+import { leafFromEntryHash, merkleRootHex } from "./merkle.js";
+
+/** Signs the JCS of a checkpoint payload with Ed25519, returning base64 (D5). */
+export interface Signer {
+  sign(message: string): string;
+}
+
+export function loadSigner(pemPath: string): Signer {
+  const key = createPrivateKey(readFileSync(pemPath, "utf8"));
+  return { sign: (message) => cryptoSign(null, Buffer.from(message, "utf8"), key).toString("base64") };
+}
+
+export interface Checkpoint {
+  id: string;
+  tenant_id: string;
+  seq_from: number;
+  seq_to: number;
+  merkle_root: string;
+  created_at: string;
+  signature: string;
+}
+
+/** Append a signed checkpoint as one JSON line to the out-of-band anchors log (D5). */
+export function makeAnchorAppender(path: string): (cp: Checkpoint) => void {
+  return (cp) => appendFileSync(path, JSON.stringify(cp) + "\n");
+}
+
+/**
+ * Seal all un-checkpointed entries for a tenant into one signed Merkle checkpoint (SPEC 4.3).
+ * Crash-safe: the batch starts just after the last checkpoint's seq_to. Returns null if nothing is
+ * pending. The 5-min / 1,000-entry cadence (D5) is driven by the caller (server interval).
+ */
+export async function createPendingCheckpoint(
+  pool: Pool,
+  signer: Signer,
+  tenant: string,
+  onAnchor?: (cp: Checkpoint) => void,
+): Promise<Checkpoint | null> {
+  const last = await pool.query<{ s: string }>(
+    "SELECT COALESCE(MAX(seq_to), 0) AS s FROM checkpoints WHERE tenant_id = $1",
+    [tenant],
+  );
+  const from = Number(last.rows[0]!.s) + 1;
+
+  const rows = await pool.query<{ seq: string; entry_hash: string }>(
+    "SELECT seq, entry_hash FROM ledger_entries WHERE tenant_id = $1 AND seq >= $2 ORDER BY seq ASC",
+    [tenant, from],
+  );
+  if (rows.rowCount === 0) return null;
+
+  const seqFrom = Number(rows.rows[0]!.seq);
+  const seqTo = Number(rows.rows[rows.rows.length - 1]!.seq);
+  const leaves = rows.rows.map((r) => leafFromEntryHash(r.entry_hash));
+  const merkleRoot = merkleRootHex(leaves);
+
+  const tsRes = await pool.query<{ ts: string }>(
+    `SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ts`,
+  );
+  const createdAt = tsRes.rows[0]!.ts;
+
+  // The signed payload — key order is irrelevant (JCS sorts); the verifier rebuilds this exactly.
+  const payload = {
+    tenant_id: tenant,
+    seq_from: seqFrom,
+    seq_to: seqTo,
+    merkle_root: merkleRoot,
+    created_at: createdAt,
+  };
+  const signature = signer.sign(canonicalize(payload));
+  const id = ulid();
+
+  await pool.query(
+    `INSERT INTO checkpoints (id, tenant_id, seq_from, seq_to, merkle_root, signature, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)`,
+    [id, tenant, seqFrom, seqTo, merkleRoot, signature, createdAt],
+  );
+
+  const checkpoint: Checkpoint = { id, ...payload, signature };
+  if (onAnchor) onAnchor(checkpoint);
+  return checkpoint;
+}

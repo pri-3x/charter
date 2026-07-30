@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mandate — Operator Console</title>
+    <style>
+      :root {
+        --bg: #0b0e14; --panel: #131722; --panel-2: #1a2030; --border: #262d3d;
+        --text: #d7dce5; --muted: #8b94a7; --accent: #5b9dff;
+        --allow: #34d399; --deny: #f87171; --escalate: #fbbf24;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      header {
+        display: flex; align-items: center; gap: 18px; padding: 0 20px; height: 52px;
+        background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+      }
+      header a.brand { font-size: 15px; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: 0.3px; }
+      header a.brand span { color: var(--accent); }
+      nav { display: flex; gap: 4px; }
+      nav a { color: var(--muted); text-decoration: none; padding: 7px 12px; border-radius: 7px; font-size: 13px; }
+      nav a:hover { color: var(--text); background: var(--panel-2); }
+      nav a.active { color: var(--text); background: var(--panel-2); }
+      .health { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+      .pill { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; display: inline-block; }
+      .dot.ok { background: var(--allow); } .dot.bad { background: var(--deny); }
+      main { padding: 18px 20px; max-width: 1200px; margin: 0 auto; }
+      .view { display: none; }
+      .view.active { display: block; }
+      .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+      .panel > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+      .panel .body { padding: 14px 16px; }
+      .two { display: grid; grid-template-columns: 420px 1fr; gap: 16px; align-items: start; }
+      @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+      label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+      input, select, textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+      textarea { font-family: var(--mono); font-size: 12px; resize: vertical; }
+      input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+      button { background: var(--accent); color: #06101f; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+      button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      button:hover:not(:disabled) { filter: brightness(1.08); }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+      .verdict-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; letter-spacing: 0.4px; }
+      .v-ALLOW { background: rgba(52,211,153,0.15); color: var(--allow); }
+      .v-DENY { background: rgba(248,113,113,0.15); color: var(--deny); }
+      .v-ESCALATE { background: rgba(251,191,36,0.15); color: var(--escalate); }
+      table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+      th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; position: sticky; top: 0; background: var(--panel); }
+      tbody tr { cursor: pointer; }
+      tbody tr:hover { background: var(--panel-2); }
+      tbody tr.selected { background: rgba(91,157,255,0.1); }
+      .mono { font-family: var(--mono); } .muted { color: var(--muted); }
+      .kind { font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); }
+      pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow: auto; font-size: 12px; margin: 0; max-height: 340px; }
+      .result-box { margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); font-size: 13px; }
+      .chain { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; }
+      .toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+      .toolbar select, .toolbar input { width: auto; flex: 0 0 auto; padding: 6px 8px; }
+      .grow { flex: 1 1 auto; }
+      .err { color: var(--deny); font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+      .ok-note { color: var(--allow); font-size: 12px; margin-top: 8px; }
+      .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+      details.future { margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; color: var(--muted); font-size: 12px; }
+      .banner { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: var(--escalate); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">Mandate <span>Console</span></a>
+      <nav id="nav">
+        <a href="#ledger" data-route="ledger">Ledger</a>
+        <a href="#checks" data-route="checks">Checks</a>
+        <a href="#policies" data-route="policies">Policies</a>
+        <a href="#agents" data-route="agents">Agents</a>
+        <a href="#checkpoints" data-route="checkpoints">Checkpoints</a>
+        <a href="#settings" data-route="settings">Settings</a>
+      </nav>
+      <div class="health">
+        <span class="pill" id="policyPill">policy: —</span>
+        <span id="healthText">—</span><span class="dot" id="healthDot"></span>
+      </div>
+    </header>
+
+    <main>
+      <div id="notConnected" class="banner" style="display:none">
+        Not connected. Add your admin key (and agent key for checks) in
+        <a href="#settings" style="color:var(--escalate)">Settings</a>.
+      </div>
+
+      <!-- LEDGER -->
+      <section class="view" id="view-ledger">
+        <div class="panel">
+          <h2>Audit ledger</h2>
+          <div class="toolbar">
+            <select id="fKind"><option value="">all kinds</option><option>VERDICT</option><option>APPROVAL</option><option>OUTCOME</option><option>POLICY_ACTIVATED</option><option>AGENT_SUSPENDED</option></select>
+            <select id="fVerdict"><option value="">all verdicts</option><option>ALLOW</option><option>DENY</option><option>ESCALATE</option></select>
+            <input id="fTool" placeholder="tool" size="10" />
+            <input id="fFromSeq" placeholder="from seq" size="8" />
+            <button class="secondary" id="reloadLedger" style="margin-top:0">Reload</button>
+            <label style="display:flex;align-items:center;gap:6px;margin:0;flex:0 0 auto"><input type="checkbox" id="autoRefresh" style="width:auto" /> auto</label>
+            <span class="grow"></span>
+            <span class="muted" id="ledgerCount"></span>
+          </div>
+          <div class="two" style="gap:0">
+            <div style="max-height:72vh;overflow:auto">
+              <table><thead><tr><th>seq</th><th>kind</th><th>tool</th><th>verdict</th><th>rule</th></tr></thead><tbody id="ledgerBody"></tbody></table>
+            </div>
+            <div style="padding:12px 16px;border-left:1px solid var(--border);max-height:72vh;overflow:auto">
+              <div id="detail" class="muted">Select a ledger entry to inspect its payload, rule trace, hash chain, and (for escalations) the hold.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHECKS -->
+      <section class="view" id="view-checks">
+        <div class="panel">
+          <h2>Submit a policy check</h2>
+          <div class="body" style="max-width:560px">
+            <label>Tool</label>
+            <select id="tool"><option>refund</option><option>send_email</option><option>lookup_order</option><option>update_record</option><option>delete_record</option><option value="__custom">custom…</option></select>
+            <input id="toolCustom" placeholder="custom tool name" style="display:none;margin-top:6px" />
+            <label>Principal</label>
+            <input id="principal" value="user:rahul@acme.co" />
+            <label>Params (JSON)</label>
+            <textarea id="params" rows="5">{
+  "order_id": "O-9912",
+  "amount": 20000,
+  "currency": "INR"
+}</textarea>
+            <div class="hint">Amounts are integer minor units (paise). ₹5,000 = 500000.</div>
+            <label>Reasoning <span class="muted">(optional)</span></label>
+            <input id="reasoning" placeholder="why is the agent doing this?" />
+            <button id="submitCheck">Submit check →</button>
+            <div id="checkResult"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- POLICIES -->
+      <section class="view" id="view-policies">
+        <div class="panel">
+          <h2>Policy</h2>
+          <div class="body">
+            <div class="muted" id="activePolicyInfo">active policy: —</div>
+            <label style="margin-top:14px">Policy YAML (create a draft, then activate)</label>
+            <textarea id="policyYaml" rows="16" placeholder="paste a policy document…"></textarea>
+            <div class="row">
+              <button id="createDraft">Create draft</button>
+              <button class="secondary" id="activateDraft" disabled>Activate draft</button>
+            </div>
+            <div id="policyMsg"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AGENTS -->
+      <section class="view" id="view-agents">
+        <div class="panel">
+          <h2>Agents &amp; kill switch</h2>
+          <div class="body" style="max-width:520px">
+            <label>Suspend agent <span class="muted">(D15)</span></label>
+            <input id="suspendAgentId" value="support-agent" />
+            <button id="suspendBtn">Suspend agent</button>
+            <div id="suspendMsg"></div>
+            <div class="hint" style="margin-top:10px">Approve / reject escalations from the <a href="#ledger" style="color:var(--accent)">Ledger</a> — open any ESCALATE entry to see its hold controls. Un-suspend is out of POC scope (manual SQL).</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHECKPOINTS -->
+      <section class="view" id="view-checkpoints">
+        <div class="panel">
+          <h2>Merkle checkpoints</h2>
+          <div class="toolbar">
+            <button class="secondary" id="reloadCheckpoints" style="margin-top:0">Reload</button>
+            <span class="grow"></span>
+            <span class="muted" id="cpCount"></span>
+          </div>
+          <div style="max-height:40vh;overflow:auto">
+            <table><thead><tr><th>seq range</th><th>merkle_root</th><th>signature</th><th>created</th></tr></thead><tbody id="cpBody"></tbody></table>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Inclusion proof</h2>
+          <div class="body" style="max-width:640px">
+            <label>Entry id</label>
+            <input id="proofEntryId" placeholder="01J… (a VERDICT/OUTCOME/… entry_id)" />
+            <button id="fetchProof">Fetch proof</button>
+            <div class="hint">Returns the entry_hash, the Merkle path to the signed root, and the checkpoint signature — enough for third-party inclusion verification.</div>
+            <div id="proofOut"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="view" id="view-settings">
+        <div class="panel">
+          <h2>Connection</h2>
+          <div class="body" style="max-width:520px">
+            <label>Gate base URL</label>
+            <input id="baseUrl" placeholder="(same origin)" />
+            <label>Admin key <span class="muted">(ledger, policies, decisions, suspend)</span></label>
+            <input id="adminKey" type="password" placeholder="MANDATE_ADMIN_KEY" />
+            <label>Agent key <span class="muted">(check console)</span></label>
+            <input id="agentKey" type="password" placeholder="agent API key" />
+            <label>Tenant</label>
+            <input id="tenant" value="acme-fintech" />
+            <div class="row">
+              <button id="saveConn">Save &amp; connect</button>
+              <button class="secondary" id="refreshHealth">Check health</button>
+            </div>
+            <div id="connMsg"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const store = {
+        get baseUrl() { return localStorage.getItem("mnd_base") || ""; },
+        get adminKey() { return localStorage.getItem("mnd_admin") || ""; },
+        get agentKey() { return localStorage.getItem("mnd_agent") || ""; },
+        get tenant() { return localStorage.getItem("mnd_tenant") || "acme-fintech"; },
+      };
+      let entries = [], selectedSeq = null, autoTimer = null, draftId = null;
+
+      function url(path) { return (store.baseUrl || "") + path; }
+      async function api(path, { method = "GET", key, body } = {}) {
+        const headers = { "Content-Type": "application/json" };
+        if (key) headers["Authorization"] = "Bearer " + key;
+        if (method === "POST" && path.includes("/actions/check"))
+          headers["Idempotency-Key"] = "console-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+        const res = await fetch(url(path), { method, headers, body: body ? JSON.stringify(body) : undefined });
+        let data = null; try { data = await res.json(); } catch (_) {}
+        return { status: res.status, headers: res.headers, data };
+      }
+      function escapeHtml(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+
+      // ---- routing ----
+      const ROUTES = ["ledger", "checks", "policies", "agents", "checkpoints", "settings"];
+      function showRoute(name) {
+        if (!ROUTES.includes(name)) name = "ledger";
+        ROUTES.forEach((r) => $("view-" + r).classList.toggle("active", r === name));
+        document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.route === name));
+        if (name === "ledger") loadLedger();
+        if (name === "policies") refreshActivePolicy();
+        if (name === "checkpoints") loadCheckpoints();
+      }
+      window.addEventListener("hashchange", () => showRoute(location.hash.slice(1)));
+
+      // ---- connection / health ----
+      $("baseUrl").value = store.baseUrl; $("adminKey").value = store.adminKey;
+      $("agentKey").value = store.agentKey; $("tenant").value = store.tenant;
+      $("saveConn").onclick = () => {
+        localStorage.setItem("mnd_base", $("baseUrl").value.trim().replace(/\/$/, ""));
+        localStorage.setItem("mnd_admin", $("adminKey").value.trim());
+        localStorage.setItem("mnd_agent", $("agentKey").value.trim());
+        localStorage.setItem("mnd_tenant", $("tenant").value.trim() || "acme-fintech");
+        $("connMsg").innerHTML = '<div class="ok-note">saved</div>';
+        $("notConnected").style.display = store.adminKey ? "none" : "block";
+        refreshHealth(); location.hash = "#ledger";
+      };
+      $("refreshHealth").onclick = () => refreshHealth();
+      async function refreshHealth() {
+        try {
+          const { status, data } = await api("/healthz");
+          const ok = status === 200 && data && data.ok;
+          $("healthDot").className = "dot " + (ok ? "ok" : "bad");
+          $("healthText").textContent = ok ? "healthy" : "unhealthy";
+          const v = data && data.active_policy_version;
+          $("policyPill").textContent = "policy: " + (v == null ? "none" : "v" + v);
+        } catch (e) { $("healthDot").className = "dot bad"; $("healthText").textContent = "unreachable"; }
+      }
+
+      // ---- checks ----
+      $("tool").onchange = () => { $("toolCustom").style.display = $("tool").value === "__custom" ? "block" : "none"; };
+      $("submitCheck").onclick = async () => {
+        const box = $("checkResult");
+        if (!store.agentKey) { box.innerHTML = '<div class="err">Set an agent key in Settings first.</div>'; return; }
+        let params; try { params = JSON.parse($("params").value); }
+        catch (e) { box.innerHTML = '<div class="err">Params is not valid JSON: ' + e.message + "</div>"; return; }
+        const tool = $("tool").value === "__custom" ? $("toolCustom").value.trim() : $("tool").value;
+        const reasoning = $("reasoning").value.trim();
+        const payload = { tool, params, principal: $("principal").value.trim() };
+        if (reasoning) payload.context = { reasoning };
+        box.innerHTML = '<div class="muted">submitting…</div>';
+        const { status, data } = await api("/v1/actions/check", { method: "POST", key: store.agentKey, body: payload });
+        if (status !== 200) { box.innerHTML = '<div class="err">HTTP ' + status + "\n" + JSON.stringify(data, null, 2) + "</div>"; return; }
+        let html = '<div class="result-box"><span class="verdict-badge v-' + data.verdict + '">' + data.verdict + "</span> <span class='mono muted'>" + (data.rule_id || "") + "</span>";
+        if (data.reason) html += "<div style='margin-top:6px'>" + escapeHtml(data.reason) + "</div>";
+        if (data.hold_id) html += "<div style='margin-top:6px' class='mono muted'>hold " + data.hold_id + " · ttl " + data.ttl_minutes + "m</div>";
+        html += "<div style='margin-top:6px' class='chain'>entry " + data.entry_id + "</div></div>";
+        box.innerHTML = html;
+      };
+
+      // ---- policies ----
+      async function refreshActivePolicy() {
+        const { data } = await api("/healthz");
+        const v = data && data.active_policy_version;
+        $("activePolicyInfo").textContent = "active policy: " + (v == null ? "none" : "version " + v);
+      }
+      $("createDraft").onclick = async () => {
+        const msg = $("policyMsg");
+        if (!store.adminKey) { msg.innerHTML = '<div class="err">Set an admin key first.</div>'; return; }
+        const { status, data } = await api("/v1/policies", { method: "POST", key: store.adminKey, body: { yaml: $("policyYaml").value } });
+        if (status !== 200) { msg.innerHTML = '<div class="err">HTTP ' + status + "\n" + JSON.stringify(data, null, 2) + "</div>"; $("activateDraft").disabled = true; return; }
+        draftId = data.draft_id; $("activateDraft").disabled = false;
+        msg.innerHTML = '<div class="ok-note">draft ' + draftId + " created — review, then activate</div>";
+      };
+      $("activateDraft").onclick = async () => {
+        const msg = $("policyMsg"); if (!draftId) return;
+        const { status, data } = await api("/v1/policies/" + draftId + "/activate", { method: "POST", key: store.adminKey });
+        if (status !== 200) { msg.innerHTML = '<div class="err">HTTP ' + status + "\n" + JSON.stringify(data, null, 2) + "</div>"; return; }
+        msg.innerHTML = '<div class="ok-note">activated v' + data.version + " · " + data.doc_hash + "</div>";
+        $("activateDraft").disabled = true; draftId = null; refreshHealth(); refreshActivePolicy();
+      };
+
+      // ---- suspend ----
+      $("suspendBtn").onclick = async () => {
+        const msg = $("suspendMsg");
+        if (!store.adminKey) { msg.innerHTML = '<div class="err">Set an admin key first.</div>'; return; }
+        const agentId = $("suspendAgentId").value.trim();
+        if (!confirm("Suspend agent '" + agentId + "'? Un-suspend requires manual SQL.")) return;
+        const { status, data } = await api("/v1/agents/" + agentId + "/suspend", { method: "POST", key: store.adminKey });
+        if (status !== 200) { msg.innerHTML = '<div class="err">HTTP ' + status + " " + JSON.stringify(data) + "</div>"; return; }
+        msg.innerHTML = '<div class="ok-note">suspended · AGENT_SUSPENDED entry ' + data.entry_id + "</div>";
+        refreshHealth();
+      };
+
+      // ---- checkpoints ----
+      async function loadCheckpoints() {
+        if (!store.adminKey) { $("cpCount").textContent = "admin key required (Settings)"; return; }
+        const { status, data } = await api("/v1/ledger/checkpoints?tenant=" + encodeURIComponent(store.tenant), { key: store.adminKey });
+        if (status !== 200) { $("cpCount").textContent = "HTTP " + status; return; }
+        const cps = data.checkpoints || [];
+        $("cpBody").innerHTML = cps.map((c) =>
+          "<tr><td class='mono'>" + c.seq_from + "–" + c.seq_to + "</td><td class='mono muted'>" + c.merkle_root.slice(0, 24) + "…</td><td class='mono muted'>" + String(c.signature).slice(0, 16) + "…</td><td class='muted'>" + c.created_at + "</td></tr>"
+        ).join("") || "<tr><td colspan=4 class='muted' style='padding:16px'>no checkpoints yet (worker seals every 5 min / 1,000 entries)</td></tr>";
+        $("cpCount").textContent = cps.length + " checkpoints";
+      }
+      $("reloadCheckpoints").onclick = loadCheckpoints;
+      $("fetchProof").onclick = async () => {
+        const out = $("proofOut");
+        const id = $("proofEntryId").value.trim();
+        if (!id) return;
+        const { status, data } = await api("/v1/ledger/proof/" + encodeURIComponent(id), { key: store.adminKey });
+        if (status === 404) { out.innerHTML = "<div class='err'>not found or not yet checkpointed</div>"; return; }
+        if (status !== 200) { out.innerHTML = "<div class='err'>HTTP " + status + "</div>"; return; }
+        out.innerHTML = "<div class='result-box'><div class='mono' style='font-size:11px'>entry_hash " + data.entry_hash + "<br>root " + data.merkle_root + "<br>path length " + data.merkle_path.length + "</div><pre style='margin-top:8px'>" + escapeHtml(JSON.stringify(data.merkle_path, null, 2)) + "</pre></div>";
+      };
+
+      // ---- ledger ----
+      async function loadLedger() {
+        if (!store.adminKey) { $("ledgerCount").textContent = "admin key required (Settings)"; return; }
+        const qs = new URLSearchParams({ tenant: store.tenant, limit: "200" });
+        if ($("fKind").value) qs.set("kind", $("fKind").value);
+        if ($("fVerdict").value) qs.set("verdict", $("fVerdict").value);
+        if ($("fTool").value.trim()) qs.set("tool", $("fTool").value.trim());
+        if ($("fFromSeq").value.trim()) qs.set("from_seq", $("fFromSeq").value.trim());
+        const { status, data } = await api("/v1/ledger?" + qs.toString(), { key: store.adminKey });
+        if (status !== 200) { $("ledgerCount").textContent = "HTTP " + status; return; }
+        entries = data.entries || []; renderLedger();
+        $("ledgerCount").textContent = entries.length + " entries" + (data.next_from_seq ? " · more from " + data.next_from_seq : "");
+      }
+      function renderLedger() {
+        const rows = entries.slice().reverse().map((e) => {
+          const tool = e.action ? e.action.tool : "";
+          const v = e.verdict ? "<span class='verdict-badge v-" + e.verdict + "'>" + e.verdict + "</span>" : "";
+          const sel = e.seq === selectedSeq ? " class='selected'" : "";
+          return "<tr" + sel + " data-seq='" + e.seq + "'><td class='mono'>" + e.seq + "</td><td><span class='kind'>" + e.kind + "</span></td><td>" + (tool || "<span class='muted'>—</span>") + "</td><td>" + (v || "<span class='muted'>—</span>") + "</td><td class='mono muted'>" + (e.rule_id || "") + "</td></tr>";
+        }).join("");
+        $("ledgerBody").innerHTML = rows || "<tr><td colspan=5 class='muted' style='padding:16px'>no entries</td></tr>";
+        $("ledgerBody").querySelectorAll("tr[data-seq]").forEach((tr) => { tr.onclick = () => showDetail(Number(tr.dataset.seq)); });
+      }
+      function showDetail(seq) {
+        selectedSeq = seq; renderLedger();
+        const e = entries.find((x) => x.seq === seq); if (!e) return;
+        let html = "<div style='display:flex;gap:8px;align-items:center;margin-bottom:8px'><span class='kind'>" + e.kind + "</span>";
+        if (e.verdict) html += "<span class='verdict-badge v-" + e.verdict + "'>" + e.verdict + "</span>";
+        html += "<span class='mono muted'>seq " + e.seq + "</span></div><div class='muted' style='font-size:11px'>ts " + (e.ts || "") + "</div>";
+        if (e.rule_trace) {
+          html += "<h3 style='font-size:11px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px'>Rule trace</h3>";
+          html += "<div style='font-size:12px'>scope_ok: " + e.rule_trace.scope_ok + " · cap_applied: " + e.rule_trace.cap_applied + "</div>";
+          html += "<table style='margin-top:6px'><thead><tr><th>rule</th><th>matched</th><th>why</th></tr></thead><tbody>";
+          (e.rule_trace.rules || []).forEach((r) => { html += "<tr><td class='mono'>" + r.rule_id + "</td><td>" + (r.matched ? "✓" : "·") + "</td><td class='muted' style='white-space:normal'>" + escapeHtml(r.why || "") + "</td></tr>"; });
+          html += "</tbody></table>";
+        }
+        html += "<h3 style='font-size:11px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px'>Hash chain</h3><div class='chain'>prev: " + (e.prev_hash || "") + "<br>hash: " + (e.entry_hash || "") + "</div>";
+        if (e.kind === "VERDICT" && e.verdict === "ESCALATE" && e.hold && e.hold.id)
+          html += "<h3 style='font-size:11px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px'>Hold</h3><div id='holdCtl' class='result-box'>loading hold…</div>";
+        html += "<h3 style='font-size:11px;text-transform:uppercase;color:var(--muted);margin:12px 0 4px'>Payload</h3><pre>" + escapeHtml(JSON.stringify(e, null, 2)) + "</pre>";
+        $("detail").innerHTML = html;
+        if (e.kind === "VERDICT" && e.verdict === "ESCALATE" && e.hold && e.hold.id) renderHold(e.hold.id);
+      }
+      async function renderHold(holdId) {
+        const el = $("holdCtl"); if (!el) return;
+        const { status, data } = await api("/v1/holds/" + holdId, { key: store.adminKey });
+        if (status !== 200) { el.innerHTML = "<span class='err'>hold HTTP " + status + "</span>"; return; }
+        let h = "<div><b>" + data.status + "</b> <span class='mono muted'>" + holdId + "</span></div>";
+        if (data.status === "PENDING")
+          h += "<div style='margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap'><select id='approverSel' style='width:auto'><option>user:monty@acme.co</option><option>user:steven@acme.co</option></select><button id='approveBtn' style='margin-top:0'>Approve</button><button id='rejectBtn' class='secondary' style='margin-top:0'>Reject</button></div><div id='holdMsg' class='hint'></div>";
+        else h += "<div class='hint'>decided_by " + (data.decided_by || "—") + (data.decided_at ? " · " + data.decided_at : "") + "</div>";
+        el.innerHTML = h;
+        if (data.status === "PENDING") { $("approveBtn").onclick = () => submitDecision(holdId, "APPROVED"); $("rejectBtn").onclick = () => submitDecision(holdId, "REJECTED"); }
+      }
+      async function submitDecision(holdId, decision) {
+        const approver = $("approverSel").value, msg = $("holdMsg");
+        const { status } = await api("/v1/holds/" + holdId + "/decision", { method: "POST", key: store.adminKey, body: { decision, decided_by_principal: approver, channel: "console" } });
+        if (status === 403) { msg.innerHTML = "<span class='err'>refused: self-approval or not an approver</span>"; return; }
+        if (status === 409) { msg.innerHTML = "<span class='err'>already resolved</span>"; return; }
+        if (status !== 200) { msg.innerHTML = "<span class='err'>HTTP " + status + "</span>"; return; }
+        renderHold(holdId); loadLedger();
+      }
+      $("reloadLedger").onclick = loadLedger;
+      $("autoRefresh").onchange = () => { if ($("autoRefresh").checked) autoTimer = setInterval(loadLedger, 3000); else clearInterval(autoTimer); };
+
+      // ---- boot ----
+      $("notConnected").style.display = store.adminKey ? "none" : "block";
+      refreshHealth();
+      showRoute(location.hash.slice(1) || (store.adminKey ? "ledger" : "settings"));
+      if (!location.hash) location.hash = store.adminKey ? "#ledger" : "#settings";
+    </script>
+  </body>
+</html>

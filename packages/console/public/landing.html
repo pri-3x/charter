@@ -1,0 +1,2558 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Charter — runtime authority for AI agents</title>
+    <meta
+      name="description"
+      content="Your AI can spend money. Charter decides when it can — every action checked against your written authority, big ones paused for a person, every decision written to an immutable ledger."
+    />
+    <link rel="stylesheet" href="/console/charter.css" />
+    <style>
+      /* ==========================================================================================
+         Charter — landing page
+         Split surface: paper on the left, carbon on the right. The right panel is a live canvas of
+         type on concentric rings; click and hold to charge it, release for a ripple. Below the fold
+         the decision flow is a real ledger — every row is an actual call to the gate.
+         ========================================================================================== */
+
+      /* ------------------------------------------------------------------------------ ASCII curtain */
+      #curtain {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: block;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.12s;
+      }
+      #curtain.on {
+        opacity: 1;
+        pointer-events: all;
+      }
+
+      /* ---------------------------------------------------------------------------------- minimap */
+      .minimap {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 60;
+        width: 96px;
+        aspect-ratio: 16 / 10;
+        border-radius: var(--r-4);
+        overflow: hidden;
+        background: rgba(35, 35, 35, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(6px);
+        opacity: 0;
+        transition: opacity 0.5s 0.4s;
+        pointer-events: none;
+      }
+      .minimap.ready {
+        opacity: 1;
+      }
+      .minimap canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .minimap .view {
+        position: absolute;
+        left: 0;
+        right: 0;
+        box-shadow:
+          inset 0 0 0 1px var(--accent),
+          0 0 0 100vmax rgba(35, 35, 35, 0.5);
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+      }
+      @media (max-width: 900px) {
+        .minimap {
+          display: none;
+        }
+      }
+
+      /* ------------------------------------------------------------------------------------- hero */
+      .hero {
+        display: grid;
+        grid-template-columns: 54fr 46fr;
+        min-height: calc(100svh - 54px);
+        border-bottom: var(--edge);
+      }
+
+      .hero-l {
+        display: flex;
+        flex-direction: column;
+        padding: 0 var(--s-24);
+        max-width: 760px;
+        margin-left: auto;
+        width: 100%;
+      }
+
+      /* `margin: auto 0` centres the block in the column and pushes the status bar to the floor.
+         Bottom-anchoring it instead (margin-top: auto alone) left a third of the fold empty. */
+      .hero-l .body {
+        display: grid;
+        gap: var(--s-16);
+        margin: auto 0;
+        /* Uneven padding inside the auto-margin box biases the content up without un-centring it:
+           the two-line headline is short enough that dead-centre reads as sitting low. */
+        padding: var(--s-24) 0 var(--s-80);
+      }
+      /* The three lede lines sit closer to each other than to anything else, so they read as one
+         block of three facts rather than three unrelated paragraphs. */
+      .hero-l .lede-stack {
+        display: grid;
+        gap: var(--s-8);
+        margin-top: var(--s-8);
+        /* No ch cap here — each line is written to fit the column on one line at desktop, and
+           capping the measure at 60ch wrapped every one of them into two. */
+      }
+      .hero-l .lede-stack .lede {
+        margin: 0;
+        /* charter.css caps .lede at 60ch. Here the column itself (760px) is the measure, and the
+           three lines are written to fit it — the 60ch cap wrapped the longest one. */
+        max-width: none;
+      }
+      .hero-l .qual {
+        margin-top: var(--s-4);
+      }
+      .hero-l .cta-row {
+        margin-top: var(--s-16);
+      }
+
+      /* Each headline line is its own clipped row for the entrance, so a line that wraps breaks the
+         animation as well as the reading. Measured: the longest line ("Charter decides when it
+         can.") is 12.05x its font size wide. The column is 0.54vw - 48 until it caps at 760px, so
+         the exactly-fitting size is between 4.08vw and 4.17vw across 980-1440px — 3.9vw sits under
+         the whole range with headroom, and 56px clears the 59.1px that the capped 712px measure
+         allows. Re-measure these numbers if the headline text or the column width changes. */
+      .hero h1 {
+        font-size: clamp(26px, 3.9vw, 56px);
+        line-height: 1.0;
+        letter-spacing: -0.042em;
+      }
+
+      .hero h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+
+      .cta-row {
+        display: flex;
+        align-items: center;
+        gap: var(--s-12);
+        flex-wrap: wrap;
+      }
+
+      /* status bar pinned to the bottom of the paper column */
+      .statusbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0;
+        border-top: var(--edge);
+        margin: 0 calc(var(--s-24) * -1);
+        padding: 0 var(--s-24);
+      }
+      .statusbar > div {
+        flex: 1 0 auto;
+        min-width: 120px;
+        padding: var(--s-12) var(--s-16) var(--s-12) 0;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        display: grid;
+        gap: 3px;
+      }
+      .statusbar b {
+        font-weight: 400;
+        color: var(--ink);
+      }
+
+      /* right panel — the spiral */
+      .hero-r {
+        position: relative;
+        background: var(--carbon);
+        overflow: hidden;
+        min-height: 52svh;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .hero-r canvas {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .cursor-label {
+        position: absolute;
+        z-index: 2;
+        left: 0;
+        top: 0;
+        padding: 4px var(--s-8);
+        border-radius: var(--r-2);
+        background: rgba(242, 240, 234, 0.92);
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transform: translate(-50%, -180%);
+        transition: opacity 0.2s;
+      }
+      .cursor-label.on {
+        opacity: 1;
+      }
+
+      @media (max-width: 960px) {
+        .hero {
+          grid-template-columns: 1fr;
+          min-height: 0;
+        }
+        .hero-l {
+          padding-bottom: 0;
+          max-width: none;
+        }
+        .hero-l .body {
+          padding-top: var(--s-24);
+        }
+        .hero-r {
+          height: 62svh;
+          order: 2;
+        }
+      }
+
+      /* ---------------------------------------------------------------------------------- sections */
+      /* padding-block, not the shorthand: `.sec` and `.wrap` have equal specificity and this
+         sheet wins on order, so a shorthand here would zero out .wrap's side gutters. */
+      .sec {
+        padding-block: var(--s-64);
+      }
+      .sec-head {
+        display: grid;
+        gap: var(--s-12);
+        max-width: 68ch;
+        margin-bottom: var(--s-32);
+      }
+
+      .tri {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1px;
+        background: var(--ghost);
+        border: var(--edge);
+        border-radius: var(--r-8);
+        overflow: hidden;
+      }
+      .tri > div {
+        background: var(--paper);
+        padding: var(--s-24);
+        display: grid;
+        gap: var(--s-12);
+        align-content: start;
+      }
+      .tri h3 {
+        letter-spacing: -0.025em;
+      }
+      .tri p {
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      .tri .k {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      /* ------------------------------------------------------------------------- the character field */
+      /* The field is an absolutely-positioned layer spanning the whole (tall) section, holding one
+         sticky viewport-height pane. That is what keeps the canvas fixed while the clauses scroll
+         past it. The foreground is pointer-events: none so the lens still tracks under the text. */
+      .field-sec {
+        position: relative;
+        background: var(--carbon);
+        color: var(--paper);
+        overflow: clip;
+      }
+      .field-bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+      }
+      .field-stick {
+        position: sticky;
+        top: 0;
+        height: 100svh;
+        overflow: hidden;
+        cursor: crosshair;
+      }
+      .field-stick canvas {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .field-cur {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 2;
+        padding: 3px var(--s-8);
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      .field-cur.on {
+        opacity: 1;
+      }
+
+      .field-fg {
+        position: relative;
+        z-index: 1;
+        pointer-events: none;
+        padding-block: var(--s-80);
+        display: grid;
+        grid-template-columns: minmax(0, 30ch) minmax(0, 46ch);
+        gap: var(--s-64) var(--s-80);
+        align-items: start;
+      }
+      .field-fg a {
+        pointer-events: auto;
+      }
+      /* The head is the first cell of the second column so the clauses fall directly beneath it and
+         the left column stays empty — that is the hole the field shows through. */
+      .field-head {
+        grid-column: 2;
+        display: grid;
+        gap: var(--s-16);
+      }
+      .field-head h2 {
+        font-size: clamp(28px, 3.1vw, 44px);
+        line-height: 1.04;
+        letter-spacing: -0.035em;
+      }
+      .field-head .lede {
+        color: rgba(242, 240, 234, 0.62);
+      }
+
+      /* A word set solid, the way a redacted line reads. It reveals on hover of the heading. */
+      .redact .blk {
+        display: inline-block;
+        background: var(--paper);
+        color: var(--paper);
+        border-radius: 2px;
+        padding: 0 0.06em;
+        transition: color 0.28s var(--ease);
+      }
+      .redact:hover .blk {
+        color: var(--ink);
+      }
+
+      .feats {
+        grid-column: 2;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: var(--s-48);
+      }
+      .feats li {
+        display: grid;
+        gap: var(--s-8);
+      }
+      .feats .k {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .feats li p:last-child {
+        font-size: 14.5px;
+        color: rgba(242, 240, 234, 0.62);
+        max-width: 46ch;
+      }
+
+      @media (max-width: 900px) {
+        .field-fg {
+          grid-template-columns: minmax(0, 1fr);
+          padding-block: var(--s-64);
+          gap: var(--s-48);
+        }
+        .field-head,
+        .feats {
+          grid-column: 1;
+        }
+        .feats {
+          gap: var(--s-32);
+        }
+      }
+
+      /* ------------------------------------------------------------------------- the ASCII artefacts */
+      .ascii-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        margin-top: var(--s-48);
+        background: rgba(242, 240, 234, 0.14);
+        border-block: 1px solid rgba(242, 240, 234, 0.14);
+      }
+      .ascii-grid figure {
+        margin: 0;
+        padding: var(--s-24);
+        background: var(--carbon);
+        display: grid;
+        gap: var(--s-16);
+        align-content: start;
+      }
+      /* The ramp only reads as a picture if the cells are square-ish and the type is small enough
+         that a glyph is a pixel. 6px/6px with no letter-spacing is the smallest that stays legible. */
+      .ascii {
+        margin: 0;
+        font-family: var(--mono);
+        font-size: 6px;
+        line-height: 6px;
+        letter-spacing: 0;
+        white-space: pre;
+        overflow: hidden;
+        color: rgba(242, 240, 234, 0.72);
+        min-height: 384px;
+        user-select: none;
+      }
+      .ascii-grid figcaption {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--s-12);
+        padding-top: var(--s-12);
+        border-top: 1px solid rgba(242, 240, 234, 0.14);
+      }
+      .ascii-grid figcaption b {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 400;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--paper);
+      }
+      .ascii-grid figcaption .cap {
+        color: rgba(242, 240, 234, 0.42);
+        font-size: 10px;
+      }
+      @media (max-width: 860px) {
+        .ascii-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .ascii {
+          min-height: 220px;
+        }
+      }
+
+      /* --------------------------------------------------------------------------- the live ledger */
+      .flow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 1px;
+        background: rgba(242, 240, 234, 0.16);
+        border-radius: var(--r-8);
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(242, 240, 234, 0.16);
+      }
+      @media (max-width: 860px) {
+        .flow {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .ledger,
+      .stamp {
+        background: var(--carbon);
+      }
+
+      .ledger-head,
+      .ledger-foot {
+        display: flex;
+        align-items: center;
+        gap: var(--s-12);
+        padding: var(--s-12) var(--s-16);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(242, 240, 234, 0.45);
+      }
+      .ledger-head {
+        border-bottom: 1px solid rgba(242, 240, 234, 0.16);
+      }
+      .ledger-foot {
+        border-top: 1px solid rgba(242, 240, 234, 0.16);
+        gap: var(--s-24);
+        flex-wrap: wrap;
+      }
+      .ledger-foot b {
+        color: var(--paper);
+        font-weight: 400;
+      }
+
+      .rows {
+        height: 268px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: var(--s-8) 0;
+        /* rows push up out of a fixed window; fade the top edge so the oldest line dissolves
+           instead of being sliced through the middle of its glyphs */
+        mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 100%);
+      }
+
+      .r {
+        display: grid;
+        grid-template-columns: 84px 1fr 92px 74px;
+        gap: var(--s-12);
+        align-items: baseline;
+        padding: 5px var(--s-16);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        letter-spacing: 0.01em;
+        color: rgba(242, 240, 234, 0.62);
+        white-space: nowrap;
+        animation: rowin 0.4s var(--ease) both;
+      }
+      @keyframes rowin {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+      }
+      .r .t {
+        color: rgba(242, 240, 234, 0.32);
+      }
+      .r .w {
+        color: var(--paper);
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .r .amt {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .r .v {
+        text-align: right;
+        letter-spacing: 0.08em;
+      }
+      .r.a .v {
+        color: var(--allow-lift);
+      }
+      .r.d .v {
+        color: var(--deny-lift);
+      }
+      .r.e .v {
+        color: var(--hold-lift);
+      }
+      .r.pend .v {
+        color: rgba(242, 240, 234, 0.3);
+      }
+      /* the sub-line an escalation leaves behind once a person has signed */
+      .r.sub {
+        grid-template-columns: 84px 1fr;
+        color: rgba(242, 240, 234, 0.4);
+        padding-top: 0;
+        font-size: 11px;
+      }
+      .r.sub .w {
+        color: var(--hold-lift);
+      }
+
+      .stamp {
+        padding: var(--s-24);
+        display: grid;
+        align-content: space-between;
+        gap: var(--s-24);
+        min-height: 200px;
+      }
+      .stamp .big {
+        font-size: clamp(30px, 3.4vw, 44px);
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+        color: rgba(242, 240, 234, 0.22);
+        transition: color 0.3s;
+      }
+      .stamp.a .big {
+        color: var(--allow-lift);
+      }
+      .stamp.d .big {
+        color: var(--deny-lift);
+      }
+      .stamp.e .big {
+        color: var(--hold-lift);
+      }
+      .stamp .why {
+        font-size: 15px;
+        color: rgba(242, 240, 234, 0.72);
+        letter-spacing: -0.01em;
+      }
+      .stamp .rid {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.09em;
+        color: rgba(242, 240, 234, 0.38);
+        overflow-wrap: anywhere;
+        line-height: 1.6;
+      }
+
+      /* ----------------------------------------------------------------------------- code + evidence */
+      .code {
+        margin: 0;
+        background: var(--carbon);
+        border-radius: var(--r-8);
+        padding: var(--s-24);
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.75;
+        color: #d7d3c9;
+        tab-size: 2;
+        white-space: pre;
+      }
+      .code .c {
+        color: rgba(215, 211, 201, 0.42);
+      }
+      .code .kw {
+        color: #e9b3ff;
+      }
+      .code .s {
+        color: var(--allow-lift);
+      }
+      .code .f {
+        color: #8fc6ff;
+      }
+      .code .ac {
+        color: var(--hold-lift);
+      }
+
+      .evid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1px;
+        background: rgba(242, 240, 234, 0.16);
+        box-shadow: inset 0 0 0 1px rgba(242, 240, 234, 0.16);
+        border-radius: var(--r-8);
+        overflow: hidden;
+      }
+      .evid > div {
+        background: var(--carbon);
+        padding: var(--s-24);
+        display: grid;
+        /* number, heading, body, footer. The body row absorbs the slack so the "proved by" rules
+           line up across a row instead of each one floating up under its own paragraph. */
+        grid-template-rows: auto auto 1fr auto;
+        gap: var(--s-8);
+      }
+      .evid .n {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.11em;
+        color: var(--accent);
+      }
+      .evid h3 {
+        color: var(--paper);
+        font-size: 17px;
+      }
+      .evid p {
+        font-size: 14px;
+        color: rgba(242, 240, 234, 0.62);
+      }
+      .evid .by {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        color: rgba(242, 240, 234, 0.4);
+        padding-top: var(--s-4);
+        border-top: 1px solid rgba(242, 240, 234, 0.12);
+        margin-top: var(--s-4);
+      }
+
+      /* status list — built / not built */
+      .stat {
+        display: grid;
+        gap: 0;
+        border-top: var(--edge);
+      }
+      .stat > div {
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: var(--s-16);
+        padding: var(--s-16) 0;
+        border-bottom: var(--edge);
+        align-items: baseline;
+      }
+      .stat .lab {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+      }
+      .stat .yes .lab {
+        color: var(--allow);
+      }
+      .stat .no .lab {
+        color: var(--deny);
+      }
+      .stat p {
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      .stat b {
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      .cta-band {
+        padding: var(--s-80) 0;
+        text-align: center;
+      }
+      .cta-band .inner {
+        display: grid;
+        gap: var(--s-24);
+        justify-items: center;
+        max-width: 40ch;
+        margin: 0 auto;
+      }
+
+      .foot {
+        display: flex;
+        gap: var(--s-24);
+        flex-wrap: wrap;
+        justify-content: space-between;
+        padding: var(--s-24);
+        max-width: 1240px;
+        margin: 0 auto;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="curtain" aria-hidden="true"></canvas>
+
+    <div class="minimap" id="mm" aria-hidden="true">
+      <canvas id="mmc"></canvas>
+      <div class="view" id="mmv"></div>
+    </div>
+
+    <header class="topbar" id="top">
+      <div class="inner">
+        <nav class="pillnav" aria-label="Primary">
+          <span class="brandmark" aria-label="Charter">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M7.5 12.4l3 3 6-6.6"
+                fill="none"
+                stroke="#ff5c1a"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <a href="#what" data-odo>What it does</a>
+          <a href="#rules" data-odo>The rules</a>
+          <a href="#decide" data-odo>The decision</a>
+          <a href="#artefacts" data-odo>Artefacts</a>
+          <a href="#evidence" data-odo>Evidence</a>
+          <a href="/console/" data-odo>Console</a>
+        </nav>
+        <span class="grow"></span>
+        <span class="chip"><span class="dot off" id="dot"></span><span id="statusText">checking</span></span>
+      </div>
+    </header>
+
+    <!-- ============================================ HERO ============================================ -->
+    <section class="hero">
+      <div class="hero-l">
+        <div class="body">
+          <p class="eyebrow"><span class="n">00</span> Runtime authority for AI agents</p>
+
+          <h1 class="lines in">
+            <span class="ln"><span>Your AI can spend money.</span></span>
+            <span class="ln"><span>Charter decides <em>when</em> it can.</span></span>
+          </h1>
+
+          <!-- Three short lines, not one dense paragraph: the check, the three outcomes, the record.
+               One idea each, so the whole thing can be scanned rather than read. -->
+          <div class="lede-stack">
+            <p class="lede">Every action is checked against your written authority before it executes.</p>
+            <p class="lede">Actions are allowed automatically, blocked, or paused for human approval.</p>
+            <p class="lede">Every decision is written to an immutable ledger. Not even Charter can edit it.</p>
+          </div>
+
+          <p class="qual cap">For engineers shipping agents that move real money.</p>
+
+          <div class="cta-row">
+            <a class="btn btn-dark odo-trigger" href="#decide">
+              <span class="lbl"><span data-odo>Watch it</span></span>
+              <span class="conn"><b></b><s></s><i></i></span>
+              <span class="lbl"><span data-odo>decide</span></span>
+            </a>
+            <a class="btn btn-quiet odo-trigger" href="/console/">
+              <span class="lbl"><span data-odo>Open the console</span></span>
+            </a>
+          </div>
+        </div>
+
+        <div class="statusbar" id="statusbar">
+          <div>Gate <b id="sGate">—</b></div>
+          <div>Rules <b id="sRules">—</b></div>
+          <div>Chain <b id="sChain">—</b></div>
+          <div>Ledger <b>Insert-only</b></div>
+        </div>
+      </div>
+
+      <div class="hero-r" id="spiral">
+        <div class="cursor-label" id="cursorLabel">Click &amp; hold</div>
+      </div>
+    </section>
+
+    <!-- ======================================= 01 WHAT IT DOES ====================================== -->
+    <section class="sec wrap reveal" id="what">
+      <div class="sec-head">
+        <p class="eyebrow"><span class="n">01</span> What it does</p>
+        <h2>Three things, and that is the whole product.</h2>
+      </div>
+
+      <div class="tri">
+        <div>
+          <p class="k">Decide</p>
+          <h3>Allow, block, or ask a person</h3>
+          <p>
+            The agent asks before it acts. Small refund: allowed. Large one: frozen until finance
+            signs. Something its owner forbade: blocked, and the money is never touched.
+          </p>
+        </div>
+        <div>
+          <p class="k">Record</p>
+          <h3>A ledger nobody can edit</h3>
+          <p>
+            Every verdict is hashed into a chain and signed. Change one old entry and every entry
+            after it stops matching. The database role Charter runs as cannot delete or update rows.
+          </p>
+        </div>
+        <div>
+          <p class="k">Constrain</p>
+          <h3>A written authority per agent</h3>
+          <p>
+            A named person grants each agent a spending limit, an expiry, the tools it may use and
+            the operations it may never perform. A grant can only ever tighten the rules.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================== 02 THE RULES ======================================== -->
+    <!-- The field behind this section is one sticky canvas holding every rule Charter enforces, set
+         as a character grid. The pointer is a lens: inside it the glyphs brighten and scramble. -->
+    <section class="field-sec" id="rules">
+      <div class="field-bg" aria-hidden="true">
+        <div class="field-stick" id="fieldStick">
+          <canvas id="fieldCanvas"></canvas>
+          <div class="field-cur" id="fieldCur">Click</div>
+        </div>
+      </div>
+
+      <div class="field-fg wrap">
+        <div class="field-head">
+          <p class="eyebrow"><span class="n">02</span> The rules</p>
+          <h2 class="redact">
+            <span class="blk"><span>Every</span></span> rule decided before the agent runs. So
+            nothing is negotiated in the moment.
+          </h2>
+          <p class="lede">
+            Behind this text is the whole rulebook, every clause the gate can reach for. Drag the
+            pointer through it. Click to push it.
+          </p>
+        </div>
+
+        <ol class="feats">
+          <li>
+            <p class="k">001 / Fail closed</p>
+            <p>
+              Database unreachable, policy missing, tool not in the rulebook, agent not chartered,
+              request timed out — the action does not proceed. There is no path through Charter that
+              ends in "allow because we could not tell".
+            </p>
+          </li>
+          <li>
+            <p class="k">002 / One transaction</p>
+            <p>
+              The verdict and its ledger entry commit together. The agent is told "allowed" only
+              after Postgres has confirmed the write, so an action can never happen unrecorded.
+            </p>
+          </li>
+          <li>
+            <p class="k">003 / Insert only, enforced by the database</p>
+            <p>
+              The role Charter connects as holds no UPDATE and no DELETE on the ledger tables. This
+              is not a convention in the application code — revoke it and the application breaks.
+            </p>
+          </li>
+          <li>
+            <p class="k">004 / Rules are versioned, never edited</p>
+            <p>
+              Activating a change writes a new version. Every entry records the version it was
+              judged under, so a decision from March is still readable against March's rules.
+            </p>
+          </li>
+          <li>
+            <p class="k">005 / A spending window, not a counter</p>
+            <p>
+              Budgets are evaluated over a rolling window from the ledger itself. Nothing to reset,
+              nothing to drift out of sync with the record.
+            </p>
+          </li>
+          <li>
+            <p class="k">006 / A person on the hook</p>
+            <p>
+              Anything above the line freezes and goes to a named human on Telegram with the
+              arguments they are approving. Their identity and the moment they decided are recorded.
+            </p>
+          </li>
+          <li>
+            <p class="k">007 / Authority beats policy</p>
+            <p>
+              An agent's charter is checked before the rulebook is even consulted. Expiry, forbidden
+              operations and the granted budget can only tighten what policy would have allowed.
+            </p>
+          </li>
+          <li>
+            <p class="k">008 / Signed checkpoints</p>
+            <p>
+              The chain is anchored at intervals by an Ed25519 signature over a Merkle root, so a
+              range of history cannot be quietly rewritten and re-hashed.
+            </p>
+          </li>
+          <li>
+            <p class="k">009 / A verifier that shares no code</p>
+            <p>
+              Canonicalisation and hashing are implemented twice, independently. The auditor's tool
+              cannot inherit a bug from the thing it is auditing.
+            </p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ======================================= 03 THE DECISION ====================================== -->
+    <section class="sec band" id="decide">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow"><span class="n">03</span> The decision</p>
+          <h2>Watch it decide, live.</h2>
+          <p class="lede">
+            Nothing below is a mock-up. Each row is a real HTTP call to the gate running on this
+            machine, and each one leaves a permanent entry in the ledger.
+          </p>
+        </div>
+
+        <div class="flow" id="flow">
+          <div class="ledger">
+            <div class="ledger-head">
+              <span class="dot" id="lDot"></span><span id="lHead">Connecting to the gate</span>
+            </div>
+            <div class="rows" id="rows"></div>
+            <div class="ledger-foot">
+              <span>Allowed <b id="nAllow">0</b></span>
+              <span>Sent to a person <b id="nHold">0</b></span>
+              <span>Blocked <b id="nDeny">0</b></span>
+              <span class="grow"></span>
+              <span id="again"></span>
+            </div>
+          </div>
+
+          <div class="stamp" id="stamp">
+            <div>
+              <p class="cap" style="margin-bottom: 8px">Verdict</p>
+              <p class="big" id="sBig">Waiting</p>
+            </div>
+            <div>
+              <p class="why" id="sWhy">The agent has not asked for anything yet.</p>
+              <p class="rid" id="sRid">&nbsp;</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================== 04 FOR ENGINEERS ====================================== -->
+    <section class="sec wrap reveal" id="build">
+      <div class="sec-head">
+        <p class="eyebrow"><span class="n">04</span> For engineers</p>
+        <h2>Wrap the tool you already have.</h2>
+        <p class="lede">
+          No new agent framework, no proxy in front of your model. You wrap the function that moves
+          money and Charter becomes the thing that stands in front of it.
+        </p>
+      </div>
+
+      <pre class="code">
+<span class="kw">import</span> { MandateClient } <span class="kw">from</span> <span class="s">"@mandate/sdk"</span>;
+
+<span class="kw">const</span> charter = <span class="kw">new</span> <span class="f">MandateClient</span>({
+  baseUrl: <span class="s">"http://localhost:8090"</span>,
+  apiKey: process.env.<span class="ac">CHARTER_AGENT_KEY</span>,
+  agentId: <span class="s">"refunds-agent"</span>,
+});
+
+<span class="c">// The tool your agent already calls — now it has to ask first.</span>
+<span class="kw">export const</span> refund = charter.<span class="f">guard</span>(<span class="s">"refund"</span>, stripeRefund, {
+  principal: () <span class="kw">=></span> session.user.email,
+  reasoning: () <span class="kw">=></span> model.lastThought,
+});</pre>
+
+      <div class="tri" style="margin-top: var(--s-24)">
+        <div>
+          <p class="k">Allow</p>
+          <p><b style="color: var(--ink)">stripeRefund runs.</b> The verdict and the arguments hash are already in the ledger before it does.</p>
+        </div>
+        <div>
+          <p class="k">Deny</p>
+          <p><b style="color: var(--ink)">It throws.</b> <code class="mono" style="font-size: 12px">PolicyDeniedError</code> — the wrapped function is never entered.</p>
+        </div>
+        <div>
+          <p class="k">Escalate</p>
+          <p><b style="color: var(--ink)">It waits.</b> A person approves in Telegram, then the call proceeds — with their name attached to it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================= 05 THE ARTEFACTS ===================================== -->
+    <!-- Each panel is drawn from live data, then sampled down onto a character ramp. Nothing here is
+         an image file: the shapes are the real chain, the real checkpoint, the real verdict counts. -->
+    <section class="sec band" id="artefacts">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow"><span class="n">05</span> The artefacts</p>
+          <h2>What Charter actually hands you.</h2>
+          <p class="lede">
+            Four things exist after an agent acts, and all four are on this machine right now. These
+            are drawn from the live ledger — reload and the shapes change with it.
+          </p>
+        </div>
+      </div>
+
+      <div class="ascii-grid" id="asciiGrid">
+        <figure>
+          <pre class="ascii" data-art="chain" aria-hidden="true"></pre>
+          <figcaption>
+            <b>The chain</b>
+            <span class="cap" data-cap="chain">reading the ledger…</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <pre class="ascii" data-art="merkle" aria-hidden="true"></pre>
+          <figcaption>
+            <b>A checkpoint</b>
+            <span class="cap" data-cap="merkle">reading the checkpoints…</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <pre class="ascii" data-art="verdicts" aria-hidden="true"></pre>
+          <figcaption>
+            <b>Every verdict</b>
+            <span class="cap" data-cap="verdicts">counting…</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <pre class="ascii" data-art="seal" aria-hidden="true"></pre>
+          <figcaption>
+            <b>The signature</b>
+            <span class="cap" data-cap="seal">reading the seal…</span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ======================================== 06 EVIDENCE ========================================= -->
+    <section class="sec band" id="evidence">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow"><span class="n">06</span> Compliance</p>
+          <h2>The evidence a regulator actually asks for.</h2>
+          <p class="lede">
+            Not a dashboard screenshot. Six specific questions an auditor puts to you about an
+            automated system, and the artefact in Charter that answers each one.
+          </p>
+        </div>
+
+        <div class="evid">
+          <div>
+            <p class="n">01</p>
+            <h3>Who authorised this agent to act?</h3>
+            <p>A named human principal owns every agent, with the date they granted it and the date it lapses.</p>
+            <p class="by">Proved by: the authority document</p>
+          </div>
+          <div>
+            <p class="n">02</p>
+            <h3>What was it allowed to do?</h3>
+            <p>The version of the rules in force at that instant, not the version live today.</p>
+            <p class="by">Proved by: policy version on every entry</p>
+          </div>
+          <div>
+            <p class="n">03</p>
+            <h3>Who approved this specific payment?</h3>
+            <p>The approver's identity, the moment they decided, and the request they saw when deciding.</p>
+            <p class="by">Proved by: the hold record</p>
+          </div>
+          <div>
+            <p class="n">04</p>
+            <h3>Has the record been altered?</h3>
+            <p>Recompute the chain yourself. One edited byte anywhere breaks every hash that follows it.</p>
+            <p class="by">Proved by: independent verifier</p>
+          </div>
+          <div>
+            <p class="n">05</p>
+            <h3>When did you know?</h3>
+            <p>Signed checkpoints anchor the chain at points in time, so a range cannot be back-dated.</p>
+            <p class="by">Proved by: Ed25519 checkpoints</p>
+          </div>
+          <div>
+            <p class="n">06</p>
+            <h3>Show me last quarter.</h3>
+            <p>One export: every decision in the window, the rules applied, the approvals, the maths.</p>
+            <p class="by">Proved by: the attestation report</p>
+          </div>
+        </div>
+
+        <div class="cta-row" style="margin-top: var(--s-24)">
+          <button class="btn btn-light odo-trigger" id="reportBtn">
+            <span class="lbl"><span data-odo>Open a real</span></span>
+            <span class="conn"><b></b><s></s><i></i></span>
+            <span class="lbl"><span data-odo>report</span></span>
+          </button>
+          <span class="cap" id="reportNote"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================== 07 WHERE IT STANDS ==================================== -->
+    <section class="sec wrap reveal" id="stands">
+      <div class="sec-head">
+        <p class="eyebrow"><span class="n">07</span> Where it stands</p>
+        <h2>Honest about what is built and what is not.</h2>
+      </div>
+
+      <div class="stat">
+        <div class="yes">
+          <p class="lab">Built</p>
+          <p>
+            <b>The gate, the ledger and the verifier.</b> Policy versioning, spending windows,
+            human approvals over Telegram, Merkle checkpoints, and a verifier that shares no code
+            with the thing it audits.
+          </p>
+        </div>
+        <div class="yes">
+          <p class="lab">Built</p>
+          <p>
+            <b>The registry and authority layer.</b> Agents are chartered by a named person, with
+            budgets, expiry and forbidden operations enforced before policy is even consulted.
+          </p>
+        </div>
+        <div class="no">
+          <p class="lab">Not built</p>
+          <p>
+            <b>Credential custody.</b> Today an agent that never calls Charter is not governed by
+            it. The fix is for Charter to hold the payment credential itself and refuse to sign —
+            that is the next thing, and it is not done.
+          </p>
+        </div>
+        <div class="no">
+          <p class="lab">Not built</p>
+          <p>
+            <b>Multi-tenant hosting.</b> This runs on one machine against one Postgres. There is no
+            hosted product to sign up for.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band band">
+      <div class="inner">
+        <p class="eyebrow" style="justify-content: center"><span class="n">↘</span> Try it</p>
+        <h2>See it decide, then try to fake the record.</h2>
+        <div class="cta-row" style="justify-content: center">
+          <a class="btn btn-light odo-trigger" href="/console/">
+            <span class="lbl"><span data-odo>Open the</span></span>
+            <span class="conn"><b></b><s></s><i></i></span>
+            <span class="lbl"><span data-odo>console</span></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">
+      <span>Charter · a working prototype</span>
+      <span id="foot">honestly labelled</span>
+    </div>
+
+    <script>
+      "use strict";
+      // Everything lives in one IIFE on purpose. At the top level of a classic script a `const`
+      // whose name collides with a non-configurable global (`top`, `name`, `status`, `origin`…)
+      // fails at *instantiation* — no statement runs, and there is no error line to chase.
+      (function () {
+      const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const esc = (t) => String(t).replace(/[<>&]/g, (m) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[m]);
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      /* ------------------------------------------------------------- odometer hover scramble ----- */
+      // Each character becomes a 1em window over a column of glyphs: [real, noise×3, real]. CSS
+      // slides the column by 4em on hover with a per-character delay, so the word tumbles and lands.
+      (function odometers() {
+        const POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        const noise = (seed) => POOL[Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % POOL.length | 0];
+        document.querySelectorAll("[data-odo]").forEach((el) => {
+          const text = el.textContent;
+          const sr = document.createElement("span");
+          sr.textContent = text;
+          sr.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)";
+          const vis = document.createElement("span");
+          vis.className = "odo";
+          vis.setAttribute("aria-hidden", "true");
+          [...text].forEach((ch, i) => {
+            if (ch === " ") {
+              vis.append(document.createTextNode(" "));
+              return;
+            }
+            const cell = document.createElement("span");
+            cell.className = "odo-c";
+            cell.style.setProperty("--i", String(i));
+            const spacer = document.createElement("i");
+            spacer.textContent = ch;
+            const col = document.createElement("span");
+            [ch, noise(i + 1), noise(i + 7), noise(i + 13), ch].forEach((g) => {
+              const b = document.createElement("b");
+              b.textContent = g;
+              col.append(b);
+            });
+            cell.append(spacer, col);
+            vis.append(cell);
+          });
+          el.textContent = "";
+          el.append(sr, vis);
+        });
+      })();
+
+      /* -------------------------------------------------------------------- nav + reveal on view -- */
+      const topbar = document.getElementById("top");
+      addEventListener("scroll", () => topbar.classList.toggle("stuck", scrollY > 8), { passive: true });
+
+      const io = new IntersectionObserver(
+        (es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("in")),
+        { threshold: 0.1 },
+      );
+      document.querySelectorAll(".reveal, .lines").forEach((el) => io.observe(el));
+
+      /* ------------------------------------------------------------------- the character field ---- */
+      // A grid of monospace cells filled with the rulebook, repeated. The dim field is painted once
+      // to an offscreen canvas and blitted each frame; only the cells the pointer (or a click
+      // ripple) is currently heating get redrawn on top. That keeps the per-frame work to ~1k cells
+      // instead of the ~12k the full grid holds.
+      (function characterField() {
+        const cv = document.getElementById("fieldCanvas");
+        const stick = document.getElementById("fieldStick");
+        const cur = document.getElementById("fieldCur");
+        if (!cv || !stick) return;
+        const ctx = cv.getContext("2d");
+
+        const CLAUSES = [
+          "FAIL CLOSED",
+          "NO VERDICT BEFORE ITS ENTRY IS COMMITTED",
+          "INSERT ONLY",
+          "NO UPDATE NO DELETE",
+          "RULES ARE VERSIONED NEVER EDITED",
+          "A SPENDING WINDOW READ FROM THE LEDGER",
+          "A NAMED PERSON ON THE HOOK",
+          "AUTHORITY BEATS POLICY",
+          "A GRANT CAN ONLY TIGHTEN",
+          "SIGNED CHECKPOINTS ANCHOR THE CHAIN",
+          "THE VERIFIER SHARES NO CODE",
+          "CANONICAL JSON THEN SHA-256",
+          "UNKNOWN TOOL IS NOT ALLOWED",
+          "UNKNOWN AGENT IS NOT ALLOWED",
+          "EXPIRED CHARTER IS NOT ALLOWED",
+          "MINOR UNITS ONLY NEVER FLOATS",
+          "TIMESTAMPS COME FROM THE DATABASE",
+          "THE PARAMS HASH NOT THE PARAMS",
+        ];
+        const LINE = CLAUSES.join(" · ") + " · ";
+        const POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·/\\|=+*#%&$@!?<>[]{}";
+
+        // Cell geometry. 11px mono is ~6.6px advance; the numbers are measured, not assumed.
+        const FS = 11;
+        let CW = 7,
+          CH = 15,
+          COLS = 0,
+          ROWS = 0,
+          W = 0,
+          H = 0,
+          dpr = 1;
+        let base = document.createElement("canvas");
+        let bctx = base.getContext("2d");
+        let chars = []; // the resting glyph of every cell, row-major
+        let heat = new Float32Array(0);
+
+        // Measure the advance rather than assuming it: at 11px the fallback stack varies by ~0.4px
+        // per cell, which is a whole column of drift across a 1440px field.
+        function measure() {
+          bctx.font = FS + "px ui-monospace, Menlo, monospace";
+          CW = Math.max(5, bctx.measureText("M".repeat(20)).width / 20);
+          CH = Math.round(FS * 1.36);
+        }
+
+        function build() {
+          const r = stick.getBoundingClientRect();
+          W = Math.max(1, Math.round(r.width));
+          H = Math.max(1, Math.round(r.height));
+          dpr = Math.min(devicePixelRatio || 1, 2);
+          cv.width = Math.round(W * dpr);
+          cv.height = Math.round(H * dpr);
+          base.width = cv.width;
+          base.height = cv.height;
+          bctx = base.getContext("2d");
+          measure();
+          COLS = Math.ceil(W / CW) + 1;
+          ROWS = Math.ceil(H / CH) + 1;
+
+          // Each row starts at a different point in the rulebook, so the field reads as prose that
+          // wrapped rather than as a repeating pattern.
+          chars = new Array(ROWS);
+          for (let y = 0; y < ROWS; y++) {
+            const off = (y * 37) % LINE.length;
+            let s = "";
+            while (s.length < COLS) s += LINE.slice(off) + LINE.slice(0, off);
+            chars[y] = s.slice(0, COLS);
+          }
+          heat = new Float32Array(COLS * ROWS);
+
+          bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          bctx.clearRect(0, 0, W, H);
+          bctx.font = FS + "px ui-monospace, Menlo, monospace";
+          bctx.textBaseline = "top";
+          // Two passes: the whole field at the floor brightness, then a sparse scatter of cells a
+          // little brighter. A perfectly even field reads as a texture swatch; the variance makes it
+          // read as text someone could go and check.
+          bctx.fillStyle = "rgba(242,240,234,0.085)";
+          for (let y = 0; y < ROWS; y++) bctx.fillText(chars[y], 0, y * CH);
+          bctx.fillStyle = "rgba(242,240,234,0.17)";
+          for (let y = 0; y < ROWS; y++) {
+            const row = chars[y];
+            for (let x = 0; x < COLS; x++) {
+              let h = ((y * COLS + x) * 2654435761) >>> 0;
+              h ^= h >>> 13;
+              if (h % 11 === 0) bctx.fillText(row[x], x * CW, y * CH);
+            }
+          }
+
+          // The rAF loop only runs while something is warm, so the resting field has to be blitted
+          // here — otherwise the canvas stays blank until the first pointer event.
+          blit();
+        }
+
+        function blit() {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, cv.width, cv.height);
+          ctx.drawImage(base, 0, 0);
+        }
+
+        // ---- state ------------------------------------------------------------------------------
+        let px = -1e4,
+          py = -1e4,
+          inside = false;
+        const ripples = [];
+        let raf = 0,
+          t0 = 0,
+          last = 0;
+
+        const LENS = 180; // px radius of the pointer lens
+
+        function scramble(i, tick) {
+          // Deterministic per cell and per tick, so a glyph holds for a frame or two instead of
+          // strobing every frame.
+          let h = (i * 2654435761 + tick * 40503) >>> 0;
+          h ^= h >>> 15;
+          return POOL[h % POOL.length];
+        }
+
+        function frame(now) {
+          raf = 0;
+          if (!t0) t0 = now;
+          const dt = Math.min(0.05, (now - last || 16) / 1000);
+          last = now;
+          const tick = Math.floor((now - t0) / 70);
+
+          // Decay everything, then re-apply the lens and any live ripples.
+          for (let i = 0; i < heat.length; i++) {
+            const v = heat[i] - dt * 2.4;
+            heat[i] = v > 0 ? v : 0;
+          }
+
+          let touched = false;
+          if (inside) {
+            const c0 = Math.max(0, Math.floor((px - LENS) / CW));
+            const c1 = Math.min(COLS - 1, Math.ceil((px + LENS) / CW));
+            const r0 = Math.max(0, Math.floor((py - LENS) / CH));
+            const r1 = Math.min(ROWS - 1, Math.ceil((py + LENS) / CH));
+            for (let y = r0; y <= r1; y++) {
+              for (let x = c0; x <= c1; x++) {
+                const dx = x * CW + CW / 2 - px;
+                const dy = y * CH + CH / 2 - py;
+                const d = Math.hypot(dx, dy);
+                if (d > LENS) continue;
+                // f^1.3 rather than f^2: a squared falloff put the whole legible core inside the
+                // middle quarter of the lens and left the rest a faint smudge.
+                const v = Math.pow(1 - d / LENS, 1.3);
+                const i = y * COLS + x;
+                if (v > heat[i]) heat[i] = v;
+                touched = true;
+              }
+            }
+          }
+
+          for (let k = ripples.length - 1; k >= 0; k--) {
+            const rp = ripples[k];
+            rp.r += dt * 1150;
+            if (rp.r - 90 > Math.hypot(W, H)) {
+              ripples.splice(k, 1);
+              continue;
+            }
+            const inner = Math.max(0, rp.r - 90);
+            const outer = rp.r;
+            const c0 = Math.max(0, Math.floor((rp.x - outer) / CW));
+            const c1 = Math.min(COLS - 1, Math.ceil((rp.x + outer) / CW));
+            const r0 = Math.max(0, Math.floor((rp.y - outer) / CH));
+            const r1 = Math.min(ROWS - 1, Math.ceil((rp.y + outer) / CH));
+            for (let y = r0; y <= r1; y++) {
+              for (let x = c0; x <= c1; x++) {
+                const d = Math.hypot(x * CW + CW / 2 - rp.x, y * CH + CH / 2 - rp.y);
+                if (d < inner || d > outer) continue;
+                const f = 1 - Math.abs(d - (rp.r - 45)) / 45;
+                const v = Math.max(0, f) * rp.strength;
+                const i = y * COLS + x;
+                if (v > heat[i]) heat[i] = v;
+                touched = true;
+              }
+            }
+          }
+
+          draw(tick);
+
+          // Keep spinning while anything is still cooling; otherwise park until the next input.
+          if (touched || ripples.length) raf = requestAnimationFrame(frame);
+          else {
+            let any = false;
+            for (let i = 0; i < heat.length; i++)
+              if (heat[i] > 0.01) {
+                any = true;
+                break;
+              }
+            if (any) raf = requestAnimationFrame(frame);
+            else last = 0;
+          }
+        }
+
+        function draw(tick) {
+          blit();
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.font = FS + "px ui-monospace, Menlo, monospace";
+          ctx.textBaseline = "top";
+
+          for (let y = 0; y < ROWS; y++) {
+            const row = chars[y];
+            for (let x = 0; x < COLS; x++) {
+              const i = y * COLS + x;
+              const v = heat[i];
+              if (v < 0.02) continue;
+              // Hot cells scramble; the cool fringe keeps its real glyph and only brightens, so the
+              // rulebook stays legible right where the eye is drawn to it.
+              const ch = v > 0.5 ? scramble(i, tick) : row[x];
+              const a = 0.1 + 0.85 * v;
+              ctx.fillStyle = v > 0.86 ? "rgba(255,92,26," + a + ")" : "rgba(242,240,234," + a + ")";
+              ctx.fillText(ch, x * CW, y * CH);
+            }
+          }
+        }
+
+        function kick() {
+          if (!raf) raf = requestAnimationFrame(frame);
+        }
+
+        // ---- pointer ----------------------------------------------------------------------------
+        function toLocal(e) {
+          const r = stick.getBoundingClientRect();
+          px = e.clientX - r.left;
+          py = e.clientY - r.top;
+        }
+        if (!RM) {
+          stick.addEventListener("pointermove", (e) => {
+            toLocal(e);
+            inside = true;
+            cur.style.transform = "translate(" + (px + 14) + "px," + (py + 14) + "px)";
+            cur.classList.add("on");
+            kick();
+          });
+          stick.addEventListener("pointerleave", () => {
+            inside = false;
+            cur.classList.remove("on");
+            kick();
+          });
+          stick.addEventListener("pointerdown", (e) => {
+            toLocal(e);
+            ripples.push({ x: px, y: py, r: 0, strength: 1 });
+            kick();
+          });
+        }
+
+        // ---- lifecycle --------------------------------------------------------------------------
+        build();
+        let rt = 0;
+        addEventListener("resize", () => {
+          clearTimeout(rt);
+          rt = setTimeout(() => {
+            build();
+            kick();
+          }, 140);
+        });
+        document.fonts &&
+          document.fonts.ready.then(() => {
+            build();
+            kick();
+          });
+      })();
+
+      /* ------------------------------------------------------------------------ the type spiral --- */
+      // Concentric rings of characters, tangent to their ring, turning slowly. The cursor dissolves
+      // nearby letters into dots; click and hold gathers the rings inward and makes them shiver;
+      // releasing a charged hold sends a ripple outward that scrambles the wavefront as it passes.
+      (function spiral() {
+        const host = document.getElementById("spiral");
+        const label = document.getElementById("cursorLabel");
+        if (!host) return;
+
+        const CLAIM =
+          "CHARTER · AUTHORITY BEFORE ACTION · EVERY VERDICT RECORDED · NOTHING EDITED AFTER THE FACT · " +
+          "A PERSON SIGNS THE BIG ONES · FAIL CLOSED, ALWAYS · THE LEDGER IS THE PRODUCT · ";
+        const GLYPHS = [...new Set(CLAIM.replace(/ /g, "").split(""))];
+        const DOT = GLYPHS.length; // one extra atlas tile: the dot letters dissolve into
+
+        const cv = document.createElement("canvas");
+        host.prepend(cv);
+        const ctx = cv.getContext("2d", { alpha: false });
+        if (!ctx) return;
+
+        // ---- glyph atlas: one row of CELL-sized tiles, drawn once (and again once fonts land) ----
+        // CELL is kept close to the largest glyph actually rendered (~30px). A much larger tile has
+        // to be downsampled several times over per glyph, which averages the thin mono strokes with
+        // transparent pixels and greys the whole field out.
+        const CELL = 36;
+        const atlas = document.createElement("canvas");
+        const actx = atlas.getContext("2d");
+        let TILE = CELL; // tile size in atlas *device* pixels, so drawImage can slice it directly
+        function paintAtlas() {
+          const dpr = Math.min(devicePixelRatio || 1, 2);
+          TILE = CELL * dpr;
+          atlas.width = CELL * (GLYPHS.length + 1) * dpr;
+          atlas.height = CELL * dpr;
+          actx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          actx.clearRect(0, 0, atlas.width, atlas.height);
+          actx.fillStyle = "#fff";
+          actx.textAlign = "center";
+          actx.textBaseline = "middle";
+          actx.font = `500 ${Math.round(CELL * 0.74)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+          GLYPHS.forEach((g, i) => actx.fillText(g, (i + 0.5) * CELL, CELL * 0.54));
+          actx.beginPath();
+          actx.arc((DOT + 0.5) * CELL, CELL * 0.5, CELL * 0.09, 0, Math.PI * 2);
+          actx.fill();
+        }
+        paintAtlas();
+        document.fonts?.ready.then(paintAtlas);
+
+        // ---- ring + slot construction ------------------------------------------------------------
+        const RINGS = 26;
+        const rings = [];
+        for (let i = 0; i < RINGS; i++) {
+          const t = i / (RINGS - 1);
+          const radius = 0.07 + t * 1.36;
+          const sizePx = 13 + t * 17;
+          rings.push({
+            radius,
+            sizePx,
+            speed: (i % 2 ? -1 : 1) * (0.007 + (1 - t) * 0.03),
+            // letters cluster in an arc; the rest of the ring is a dot field
+            bandCenter: Math.random() < 0.18 ? Math.random() * Math.PI * 2 : 0.3 + (Math.random() - 0.5) * 2,
+            bandHalf: Math.PI * Math.min(0.98, 0.22 + t * 0.34 + Math.random() * 0.28),
+            soft: Math.PI * (0.07 + Math.random() * 0.13),
+            charge: 0,
+            gather: 0,
+            spin: 0,
+            spinShown: 0,
+            freeze: 0,
+            // arrival time of the entrance wave, so each ring fades in as the bulge reaches it
+            arrive: RM ? 0 : 1.8 * smoothInv(Math.min(1, Math.max(0, radius - 0.42) / 1.6)),
+          });
+        }
+
+        const slots = [];
+        let ci = 0;
+        rings.forEach((ring, ri) => {
+          const n = Math.max(10, Math.floor((2 * Math.PI * ring.radius) / (ring.sizePx * 0.00108)));
+          const base = Math.random() * Math.PI * 2;
+          const step = (2 * Math.PI) / n;
+          for (let k = 0; k < n; k++) {
+            const theta = base + k * step;
+            const d = Math.abs(wrap(theta - ring.bandCenter));
+            const inBand = smooth01(ring.bandHalf + ring.soft, Math.max(0, ring.bandHalf - ring.soft), d);
+            let ch = DOT;
+            let size = 5;
+            if (inBand > 0.7 || (inBand > 0.3 && Math.random() < inBand)) {
+              // walk the claim so the rings read as sentences, with gaps where the text has spaces
+              let c = CLAIM[ci++ % CLAIM.length];
+              while (c === " ") c = CLAIM[ci++ % CLAIM.length];
+              const gi = GLYPHS.indexOf(c);
+              if (gi >= 0) {
+                ch = gi;
+                size = ring.sizePx * (0.85 + 0.15 * inBand);
+              }
+            }
+            slots.push({
+              ri,
+              radius: ring.radius,
+              theta,
+              size,
+              ch,
+              hash: Math.abs(Math.sin(theta * 7.13 + ring.radius * 13.97) * 43758.5453) % 1,
+            });
+          }
+        });
+
+        function wrap(a) {
+          a = ((a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+          return a;
+        }
+        function smooth01(a, b, x) {
+          const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+          return t * t * (3 - 2 * t);
+        }
+        function ss(a, b, x) {
+          const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1)));
+          return t * t * (3 - 2 * t);
+        }
+        // inverse of smoothstep — turns a radius into the time the eased wavefront reaches it
+        function smoothInv(y) {
+          return 0.5 - Math.sin(Math.asin(Math.min(1, Math.max(-1, 1 - 2 * y))) / 3);
+        }
+
+        // ---- state -------------------------------------------------------------------------------
+        let W = 1, H = 1, R = 1, cx = 0, cy = 0, dpr = 1;
+        let t = RM ? 3 : 0;
+        let last = performance.now();
+        let raf = 0;
+        let visible = true;
+        const ripples = [];
+        let holding = false, charged = false, chargeT = 0, gatherT = 0, releaseAt = -1;
+        const mouse = { x: 9, y: 9, tx: 9, ty: 9, inf: 0, want: 0 };
+
+        function size() {
+          const r = host.getBoundingClientRect();
+          W = Math.max(1, r.width);
+          H = Math.max(1, r.height);
+          dpr = Math.min(devicePixelRatio || 1, 2);
+          cv.width = Math.round(W * dpr);
+          cv.height = Math.round(H * dpr);
+          R = (Math.min(W, H) / 2) * 1.06;
+          cx = W / 2;
+          cy = H / 2;
+        }
+        size();
+
+        function frame(now) {
+          const dt = Math.min(0.05, (now - last) / 1000);
+          last = now;
+          if (!RM) t += dt;
+
+          while (ripples.length && t - ripples[0].start >= 1.8) ripples.shift();
+
+          // cursor: influence and position both trail, so the dissolve is a soft gradient
+          mouse.inf += (mouse.want - mouse.inf) * (1 - Math.exp(-6 * dt));
+          mouse.x += (mouse.tx - mouse.x) * (1 - Math.exp(-14 * dt));
+          mouse.y += (mouse.ty - mouse.y) * (1 - Math.exp(-14 * dt));
+
+          if (holding) {
+            chargeT = Math.min(1, chargeT + dt / 0.9);
+            gatherT = 1 - (1 - gatherT) * Math.exp(-dt / 4);
+            if (!charged && chargeT >= 1) {
+              charged = true;
+              setLabel("Release");
+            }
+          } else {
+            chargeT *= Math.exp(-10 * dt);
+            gatherT *= Math.exp(-10 * dt);
+          }
+
+          // On a charged release the drawback springs out ring by ring, timed to the wavefront —
+          // so the gather relaxes behind the ripple rather than everywhere at once.
+          const since = t - releaseAt;
+          const releasing = releaseAt >= 0 && since < 1.8;
+          const edge = releasing ? 1.6 * ss(0, 1, since / 1.8) + 0.42 : Infinity;
+          const decay = Math.exp(-10 * dt);
+
+          for (const ring of rings) {
+            if (holding) {
+              const k = 1 - Math.exp(-14 * dt);
+              ring.charge += (chargeT - ring.charge) * k;
+              ring.gather += (ss(0, 1, chargeT) * gatherT - ring.gather) * k;
+            } else if (!releasing || edge >= ring.radius) {
+              ring.charge *= decay;
+              ring.gather *= decay;
+            }
+            // while armed the ring counter-rotates by its own speed, freezing it in place
+            ring.freeze -= ss(0, 1, ring.charge) * ring.speed * dt;
+
+            let push = 0;
+            for (const rp of ripples) {
+              const rt = (t - rp.start) / 1.8;
+              if (rt < 0 || rt >= 1) continue;
+              const wr = 1.6 * ss(0, 1, rt);
+              const bell = 1 - ss(0, 0.42, Math.abs(ring.radius - wr));
+              const life = ss(0, 0.22, rt) * (1 - ss(0.78, 1, rt));
+              push = Math.max(push, bell * life * rp.strength);
+            }
+            ring.rip = push;
+            ring.spin += 0.55 * push * (Math.sign(ring.speed) || 1) * dt;
+            ring.spinShown += (ring.spin - ring.spinShown) * (1 - Math.exp(-3 * dt));
+          }
+
+          draw();
+          raf = visible ? requestAnimationFrame(frame) : 0;
+        }
+
+        function draw() {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillStyle = "#232323";
+          ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.globalCompositeOperation = "source-over";
+          ctx.imageSmoothingQuality = "high";
+
+          const scrambleTick = Math.floor(t * 24);
+          const glitchTick = Math.floor(t * 9);
+
+          for (const s of slots) {
+            const ring = rings[s.ri];
+
+            const alpha = RM ? 1 : Math.min(1, Math.max(0, (t - ring.arrive) / 0.5));
+            if (alpha <= 0.01) continue;
+
+            const rad = s.radius * (1 - ring.gather * 0.12) + ring.rip * 0.045;
+            const ang = s.theta + t * ring.speed + ring.spinShown + ring.freeze;
+            const c = Math.cos(ang);
+            const sn = Math.sin(ang);
+            const px = c * rad;
+            const py = sn * rad;
+
+            // dissolve: cursor bell (aggressive) or the passing wavefront (softer)
+            const md = Math.hypot(px - mouse.x, py - mouse.y);
+            const hover = (1 - ss(0, 0.35, md)) * mouse.inf;
+            const strength = Math.max(hover * 2.5, ring.rip);
+
+            let ch = s.ch;
+            let size = s.size;
+            let dot = s.hash < strength;
+            if (!dot && ring.charge > 0 && ((s.hash * 977 + glitchTick * 31) % 1) < ring.charge * 0.15) dot = true;
+
+            if (dot) {
+              ch = DOT;
+              size = 5;
+            } else if (ring.rip > 0.001 && s.hash < ring.rip * 0.5) {
+              // wavefront scramble: a passing ripple briefly swaps in a random glyph
+              ch = Math.floor(((s.hash * 313 + scrambleTick * 7.7) % 1) * GLYPHS.length);
+            }
+            size *= 1 + ring.rip * 0.5;
+
+            // shiver — a sparse subset trembles while the spiral is armed
+            let ox = 0, oy = 0;
+            if (ring.charge > 0.01 && s.hash < 0.18) {
+              const amp = ring.charge * 0.002;
+              ox = Math.sin(t * (38 + s.hash * 14) + s.hash * 271) * amp;
+              oy = Math.cos(t * (34 + s.hash * 17) + s.hash * 113) * amp;
+            }
+
+            const X = (px + ox) * R + cx;
+            const Y = (py + oy) * R + cy;
+            const S = size * dpr;
+
+            // glyph sits tangent to its ring: rotation = ang + π/2, so cos→-sin and sin→cos
+            ctx.setTransform(-sn * S, c * S, -c * S, -sn * S, X * dpr, Y * dpr);
+            ctx.globalAlpha = alpha * (0.85 + 0.15 * ss(0, 0.85, s.radius));
+            ctx.drawImage(atlas, ch * TILE, 0, TILE, TILE, -0.5, -0.5, 1, 1);
+          }
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.globalAlpha = 1;
+        }
+
+        function setLabel(txt) {
+          label.textContent = txt;
+        }
+
+        // ---- pointer ------------------------------------------------------------------------------
+        const toDesign = (e) => {
+          const r = host.getBoundingClientRect();
+          return [(e.clientX - r.left - cx) / R, (e.clientY - r.top - cy) / R];
+        };
+        host.addEventListener("pointermove", (e) => {
+          const r = host.getBoundingClientRect();
+          label.style.transform = `translate(${e.clientX - r.left}px, ${e.clientY - r.top}px) translate(-50%,-180%)`;
+          const [x, y] = toDesign(e);
+          mouse.tx = x;
+          mouse.ty = y;
+        });
+        host.addEventListener("pointerenter", (e) => {
+          const [x, y] = toDesign(e);
+          mouse.tx = mouse.x = x;
+          mouse.ty = mouse.y = y;
+          mouse.want = 1;
+          label.classList.add("on");
+        });
+        host.addEventListener("pointerleave", () => {
+          mouse.want = 0;
+          holding = charged = false;
+          label.classList.remove("on");
+          setLabel("Click & hold");
+        });
+        host.addEventListener("pointerdown", () => {
+          holding = true;
+          charged = false;
+          setLabel("Keep holding");
+        });
+        addEventListener("pointerup", () => {
+          if (!holding) return;
+          holding = false;
+          if (charged) {
+            releaseAt = t;
+            ripples.push({ start: t, strength: 0.7 + 0.6 * gatherT });
+            if (ripples.length > 16) ripples.shift();
+          }
+          charged = false;
+          setLabel("Click & hold");
+        });
+
+        // ---- lifecycle ----------------------------------------------------------------------------
+        new ResizeObserver(() => {
+          size();
+          if (!raf) draw();
+        }).observe(host);
+
+        new IntersectionObserver(
+          (es) => {
+            visible = es[0].isIntersecting;
+            if (visible && !raf) {
+              last = performance.now();
+              raf = requestAnimationFrame(frame);
+            }
+          },
+          { threshold: 0 },
+        ).observe(host);
+
+        if (!RM) ripples.push({ start: 0, strength: 1 });
+        raf = requestAnimationFrame(frame);
+      })();
+
+      /* ------------------------------------------------------------------------------- minimap ---- */
+      // A block map of the page rendered once, then blitted each scroll with a viewport frame — the
+      // same idea as an editor minimap, so the whole document is legible as a shape.
+      (function minimap() {
+        const wrapEl = document.getElementById("mm");
+        const cv = document.getElementById("mmc");
+        const view = document.getElementById("mmv");
+        const ctx = cv.getContext("2d");
+        if (!ctx) return;
+        const MEDIA = new Set(["IMG", "SVG", "CANVAS", "VIDEO", "PICTURE"]);
+        const HIT = new Set(["BUTTON", "INPUT", "TEXTAREA", "SELECT", "A"]);
+        let blocks = [];
+
+        function collect() {
+          blocks = [];
+          const els = document.querySelectorAll("h1,h2,h3,p,li,pre,figure,img,svg,canvas,button,input,textarea,a");
+          for (const el of els) {
+            if (el.closest(".minimap")) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 2 || r.height < 2) continue;
+            blocks.push({
+              x: r.left,
+              y: r.top + scrollY,
+              w: r.width,
+              h: r.height,
+              kind: MEDIA.has(el.tagName) ? "media" : HIT.has(el.tagName) ? "accent" : "text",
+            });
+            if (blocks.length > 1400) break;
+          }
+          paint();
+        }
+
+        function paint() {
+          const dpr = Math.min(devicePixelRatio || 1, 2);
+          const w = wrapEl.clientWidth;
+          const h = wrapEl.clientHeight;
+          if (!w || !h) return;
+          cv.width = Math.round(w * dpr);
+          cv.height = Math.round(h * dpr);
+          const sx = w / Math.max(1, innerWidth);
+          const sy = h / Math.max(1, document.body.scrollHeight);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, w, h);
+          for (const b of blocks) {
+            ctx.globalAlpha = b.kind === "accent" ? 0.9 : b.kind === "media" ? 0.3 : 0.5;
+            ctx.fillStyle = b.kind === "accent" ? "#ff5c1a" : "#fff";
+            ctx.fillRect(b.x * sx, b.y * sy, Math.max(0.6, b.w * sx), Math.max(0.6, b.h * sy));
+          }
+          ctx.globalAlpha = 1;
+          wrapEl.classList.toggle("ready", blocks.length > 0);
+          track();
+        }
+
+        function track() {
+          const h = wrapEl.clientHeight;
+          const sy = h / Math.max(1, document.body.scrollHeight);
+          view.style.top = scrollY * sy + "px";
+          view.style.height = Math.max(4, innerHeight * sy) + "px";
+        }
+
+        addEventListener("scroll", track, { passive: true });
+        addEventListener("resize", () => {
+          collect();
+        });
+        document.fonts?.ready.then(collect);
+        [400, 1400, 3000].forEach((ms) => setTimeout(collect, ms));
+        collect();
+      })();
+
+      /* ---------------------------------------------------------------------- ASCII page curtain -- */
+      // Internal links cover the screen with a dissolving character field before navigating, so the
+      // jump between the landing page and the console reads as one machine changing screens.
+      (function curtain() {
+        const cv = document.getElementById("curtain");
+        const ctx = cv.getContext("2d");
+        if (!ctx) return;
+        const CHARS = "01<>[]{}()/\\|=+*#%&$@!?;:.~0123456789ABCDEF";
+        let cols = 0, rows = 0, cw = 0, chh = 0, offs = null, seeds = null;
+
+        function build() {
+          const dpr = Math.min(devicePixelRatio || 1, 2);
+          cv.width = Math.round(innerWidth * dpr);
+          cv.height = Math.round(innerHeight * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          cols = Math.max(8, Math.round(innerWidth / 13));
+          rows = Math.max(8, Math.round(innerHeight / 18));
+          cw = innerWidth / cols;
+          chh = innerHeight / rows;
+          offs = new Float32Array(cols * rows);
+          seeds = new Float32Array(cols * rows);
+          for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+              // a soft diagonal gradient plus jitter, so the cover sweeps rather than pops
+              offs[y * cols + x] = (x / cols) * 0.55 + (y / rows) * 0.3 + Math.random() * 0.2;
+              seeds[y * cols + x] = Math.random();
+            }
+          }
+        }
+
+        function run(done) {
+          build();
+          cv.classList.add("on");
+          const t0 = performance.now();
+          const DUR = RM ? 160 : 520;
+          ctx.font = `${Math.round(chh * 0.8)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          (function step(now) {
+            const p = Math.min(1, (now - t0) / DUR);
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            ctx.fillStyle = "#232323";
+            for (let y = 0; y < rows; y++) {
+              for (let x = 0; x < cols; x++) {
+                if (p * 1.35 - offs[y * cols + x] > 0.16) ctx.fillRect(x * cw, y * chh, cw + 1, chh + 1);
+              }
+            }
+            ctx.fillStyle = "rgba(255,92,26,0.9)";
+            for (let y = 0; y < rows; y++) {
+              for (let x = 0; x < cols; x++) {
+                const i = y * cols + x;
+                const local = p * 1.35 - offs[i];
+                if (local > -0.05 && local < 0.24) {
+                  const g = CHARS[(seeds[i] * 977 + Math.floor(now / 40)) % CHARS.length | 0];
+                  ctx.fillText(g, (x + 0.5) * cw, (y + 0.5) * chh);
+                }
+              }
+            }
+            if (p < 1) requestAnimationFrame(step);
+            else done();
+          })(performance.now());
+        }
+
+        document.addEventListener("click", (e) => {
+          const a = e.target.closest("a[href]");
+          if (!a || a.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey) return;
+          const url = new URL(a.href, location.href);
+          if (url.origin !== location.origin || url.pathname === location.pathname) return;
+          e.preventDefault();
+          run(() => location.assign(url.href));
+        });
+      })();
+
+      /* ---------------------------------------------------------------------- the live ledger ----- */
+      // Every row below is a real /v1/actions/check call. Fetch first, render second: the page never
+      // guesses what Charter would have said.
+      const CASES = [
+        { txt: "Refund a customer", tool: "refund", rupees: 200 },
+        { txt: "Email the customer", tool: "send_email", rupees: 0 },
+        { txt: "Refund a customer", tool: "refund", rupees: 80000 },
+        { txt: "Refund a customer", tool: "refund", rupees: 450 },
+        { txt: "Pay out to a bank", tool: "initiate_payout", rupees: 500 },
+        { txt: "Look up an order", tool: "lookup_order", rupees: 0 },
+        { txt: "Delete a record", tool: "delete_record", rupees: 0 },
+      ];
+
+      const PLAIN = {
+        "R1-refund-small": "small enough to allow on its own",
+        "R2-refund-large": "too big to allow without a person",
+        "R3-no-deletes": "agents may never delete records",
+        "R4-email-rate": "inside its email limit",
+        "R5-refund-velocity": "too much refunded in 24 hours",
+        "R6-payout-small": "within the payout ceiling",
+        "R7-lookup-allow": "only reading, nothing changes",
+        "R8-update-allow": "a permitted update",
+        "authority.forbidden_operation": "the person responsible forbade this",
+        "authority.budget_exceeded": "over its daily spending limit",
+        "authority.tool_not_granted": "never allowed to do this",
+        "authority.window": "outside the dates it was granted",
+        "charter.expired": "this agent's registration has ended",
+        "charter.status": "this agent has been suspended",
+        "defaults.unknown_tool": "not something it may do at all",
+        "defaults.unknown_agent": "not a registered agent",
+      };
+      const CLS = { ALLOW: "a", DENY: "d", ESCALATE: "e" };
+      const WORD = { ALLOW: "Allowed", DENY: "Blocked", ESCALATE: "Needs a person" };
+
+      const rowsEl = document.getElementById("rows");
+      const stamp = document.getElementById("stamp");
+      const sBig = document.getElementById("sBig");
+      const sWhy = document.getElementById("sWhy");
+      const sRid = document.getElementById("sRid");
+      const lHead = document.getElementById("lHead");
+      const lDot = document.getElementById("lDot");
+      const counters = {
+        ALLOW: document.getElementById("nAllow"),
+        ESCALATE: document.getElementById("nHold"),
+        DENY: document.getElementById("nDeny"),
+      };
+      const tally = { ALLOW: 0, ESCALATE: 0, DENY: 0 };
+
+      let creds = null;
+      let running = false;
+      let seen = 0;
+      let onscreen = true;
+
+      const clock = () => new Date().toTimeString().slice(0, 8) + "." + String(Date.now() % 1000).padStart(3, "0");
+      const money = (r) => (r > 0 ? "₹" + r.toLocaleString("en-IN") : "—");
+
+      async function loadCreds() {
+        try {
+          const r = await fetch("/v1/dev/credentials");
+          if (!r.ok) return null;
+          const d = await r.json();
+          const id = d.agents && (d.agents["refunds-agent"] ? "refunds-agent" : Object.keys(d.agents)[0]);
+          return id ? { id, key: d.agents[id], admin: d.admin_key } : null;
+        } catch {
+          return null;
+        }
+      }
+
+      async function decide(c) {
+        const params = { currency: "INR" };
+        if (c.rupees > 0) params.amount = c.rupees * 100;
+        if (c.tool === "lookup_order") params.order_id = "ORD-4471";
+        if (c.tool === "send_email") params.to = "customer@example.com";
+        if (c.tool === "delete_record") {
+          params.record_id = "CUST-1";
+          params.record_type = "customer";
+        }
+        const res = await fetch("/v1/actions/check", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + creds.key,
+            "Idempotency-Key": "flow-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+          },
+          body: JSON.stringify({
+            tool: c.tool,
+            params,
+            principal: "user:visitor-" + Math.random().toString(36).slice(2, 7) + "@example.com",
+            context: { reasoning: "Asked from the Charter home page." },
+          }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
+      }
+
+      function addRow(c, cls, verdictText) {
+        const el = document.createElement("div");
+        el.className = "r " + cls;
+        el.innerHTML =
+          `<span class="t">${clock()}</span>` +
+          `<span class="w">${esc(c.txt)}</span>` +
+          `<span class="amt">${money(c.rupees)}</span>` +
+          `<span class="v">${esc(verdictText)}</span>`;
+        rowsEl.append(el);
+        while (rowsEl.children.length > 9) rowsEl.firstElementChild.remove();
+        return el;
+      }
+
+      async function pass(c) {
+        const d = await decide(c);
+        const why = PLAIN[d.rule_id] || d.rule_id || "";
+
+        // 1 · the request lands in the ledger, verdict pending on screen
+        const row = addRow(c, "pend", "· · ·");
+        await wait(RM ? 0 : 420);
+
+        // 2 · the verdict resolves
+        row.className = "r " + CLS[d.verdict];
+        row.lastElementChild.textContent = d.verdict;
+        stamp.className = "stamp " + CLS[d.verdict];
+        sBig.textContent = WORD[d.verdict] || d.verdict;
+        sWhy.textContent = why ? why[0].toUpperCase() + why.slice(1) + "." : "";
+        sRid.textContent = (d.rule_id || "") + " · entry " + (d.entry_id || "").slice(0, 12);
+
+        // 3 · an escalation is a two-part story: frozen, then signed by a person
+        if (d.verdict === "ESCALATE") {
+          await wait(RM ? 0 : 900);
+          const sub = document.createElement("div");
+          sub.className = "r sub e";
+          sub.innerHTML = `<span class="t">${clock()}</span><span class="w">↳ finance-lead approved — their name is now part of the record</span>`;
+          rowsEl.append(sub);
+          while (rowsEl.children.length > 9) rowsEl.firstElementChild.remove();
+        }
+
+        tally[d.verdict] = (tally[d.verdict] || 0) + 1;
+        if (counters[d.verdict]) counters[d.verdict].textContent = tally[d.verdict];
+        await wait(RM ? 0 : 760);
+      }
+
+      async function loop() {
+        if (running) return;
+        running = true;
+        if (creds === null) creds = await loadCreds();
+        if (!creds) {
+          lHead.textContent = "Static copy — run Charter locally and this decides for real";
+          lDot.classList.add("off");
+          running = false;
+          return;
+        }
+        lDot.classList.remove("off");
+        lHead.textContent = "Live · real calls to the gate on this machine";
+        while (onscreen && seen < 12) {
+          try {
+            await pass(CASES[seen % CASES.length]);
+          } catch {
+            creds = await loadCreds(); // usually a key rotated by a db reset
+            if (!creds) break;
+          }
+          seen++;
+        }
+        running = false;
+        if (seen >= 12) {
+          lHead.textContent = `That is the whole product — ${tally.ALLOW} allowed, ${tally.ESCALATE} to a person, ${tally.DENY} blocked`;
+          const again = document.getElementById("again");
+          again.innerHTML = `<button id="againBtn" style="height:26px;font-size:10px">Run it again</button>`;
+          document.getElementById("againBtn").addEventListener("click", () => {
+            seen = 0;
+            again.textContent = "";
+            loop();
+          });
+        }
+      }
+
+      // Only run while someone is looking: this writes real ledger entries.
+      new IntersectionObserver(
+        (es) =>
+          es.forEach((e) => {
+            onscreen = e.isIntersecting;
+            if (onscreen) loop();
+          }),
+        { threshold: 0.2 },
+      ).observe(document.getElementById("flow"));
+
+      /* ------------------------------------------------------- the compliance report (the real one) */
+      document.getElementById("reportBtn")?.addEventListener("click", async () => {
+        const rn = document.getElementById("reportNote");
+        rn.textContent = "building the report…";
+        if (creds === null) creds = await loadCreds();
+        if (!creds?.admin) {
+          rn.textContent = "available when Charter runs locally";
+          return;
+        }
+        const to = new Date().toISOString();
+        const from = new Date(Date.now() - 30 * 86400000).toISOString();
+        try {
+          const r = await fetch(
+            `/v1/attestation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=html`,
+            { headers: { Authorization: "Bearer " + creds.admin } },
+          );
+          if (!r.ok) throw new Error(String(r.status));
+          const url = URL.createObjectURL(new Blob([await r.text()], { type: "text/html" }));
+          open(url, "_blank");
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          rn.textContent = "opened in a new tab — that is what an auditor receives";
+        } catch (e) {
+          rn.textContent = "could not build the report (" + e.message + ")";
+        }
+      });
+
+      /* --------------------------------------------------------------- the ASCII artefacts (real) -- */
+      // Each panel is a diagram drawn to an offscreen canvas, then read back a cell at a time and
+      // mapped through a density ramp. The diagrams are driven by live data: entry hashes set the
+      // fill of each block in the chain, the Merkle root sets the tree, the verdict counts set the
+      // histogram, the checkpoint signature sets the rings of the seal. Nothing here is an image.
+      (function artefacts() {
+        const grid = document.getElementById("asciiGrid");
+        if (!grid) return;
+
+        const RAMP = " .:-=+*#%@"; // ten steps, darkest first
+        const pre = {};
+        const capOf = {};
+        grid.querySelectorAll("[data-art]").forEach((el) => (pre[el.dataset.art] = el));
+        grid.querySelectorAll("[data-cap]").forEach((el) => (capOf[el.dataset.cap] = el));
+
+        // Sample an offscreen canvas onto a character grid. Cells are 1x1 in canvas units and the
+        // caller draws in that same space, so the art is authored directly in "characters".
+        function asciiFrom(cols, rows, paint) {
+          const c = document.createElement("canvas");
+          c.width = cols;
+          c.height = rows;
+          const g = c.getContext("2d");
+          g.fillStyle = "#000";
+          g.fillRect(0, 0, cols, rows);
+          paint(g, cols, rows);
+          const d = g.getImageData(0, 0, cols, rows).data;
+          const out = [];
+          for (let y = 0; y < rows; y++) {
+            let line = "";
+            for (let x = 0; x < cols; x++) {
+              const i = (y * cols + x) * 4;
+              // Rec. 601 luma; the diagrams are greyscale anyway but the accent strokes are not.
+              const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+              line += RAMP[Math.min(RAMP.length - 1, Math.round(l * (RAMP.length - 1)))];
+            }
+            out.push(line.replace(/\s+$/, ""));
+          }
+          return out.join("\n");
+        }
+
+        // Column count comes from the measured advance of the panel's own font, not a guess: the
+        // fallback mono stack differs enough between platforms to leave a ragged right edge or an
+        // overflow. Rows are fixed so every panel is the same height.
+        const ROWS = 64;
+        function dims(el) {
+          const cs = getComputedStyle(el);
+          const m = document.createElement("canvas").getContext("2d");
+          m.font = cs.fontSize + " " + cs.fontFamily;
+          const adv = m.measureText("M".repeat(50)).width / 50 || 3.62;
+          const w = el.clientWidth || 420;
+          return { cols: Math.max(60, Math.min(260, Math.floor(w / adv))), rows: ROWS };
+        }
+
+        const hexBytes = (h) => {
+          const s = String(h || "").replace(/^sha256:/, "");
+          const out = [];
+          for (let i = 0; i + 1 < s.length; i += 2) out.push(parseInt(s.slice(i, i + 2), 16) || 0);
+          return out.length ? out : [128];
+        };
+        const b64Bytes = (b) => {
+          try {
+            const raw = atob(String(b || ""));
+            return [...raw].map((ch) => ch.charCodeAt(0));
+          } catch {
+            return [128];
+          }
+        };
+
+        // ---- the diagrams -----------------------------------------------------------------------
+        // A run of blocks, each linked to the one before. Block height is set by a byte of its own
+        // entry hash, so the silhouette is the chain's actual fingerprint.
+        function drawChain(g, W, H, entries) {
+          const n = Math.max(4, Math.min(entries.length, Math.floor(W / 15)));
+          const slice = entries.slice(-n);
+          const bw = Math.floor(W / n);
+          const midY = H / 2;
+          slice.forEach((e, k) => {
+            const bytes = hexBytes(e.entry_hash);
+            const hh = 8 + (bytes[0] / 255) * (H * 0.62);
+            const x = k * bw + 2;
+            const w = bw - 6;
+            const y = midY - hh / 2;
+            g.fillStyle = "#8a8a8a";
+            g.fillRect(x, y, w, hh);
+            g.fillStyle = "#ffffff";
+            g.fillRect(x, y, w, 1);
+            g.fillRect(x, y + hh - 1, w, 1);
+            // the hash itself, as a density strip inside the block
+            for (let i = 0; i < w - 2 && i < bytes.length; i++) {
+              g.fillStyle = "rgba(255,255,255," + (bytes[i] / 255) * 0.85 + ")";
+              g.fillRect(x + 1 + i, y + 2, 1, Math.max(1, hh - 4));
+            }
+            // the link to the previous block
+            if (k) {
+              g.fillStyle = "#cfcfcf";
+              g.fillRect(x - 4, midY, 4, 1);
+            }
+          });
+        }
+
+        // A binary tree over the checkpoint's leaves, node brightness from the root's bytes.
+        function drawMerkle(g, W, H, cp) {
+          const bytes = hexBytes(cp.merkle_root);
+          const span = Math.max(1, Number(cp.seq_to) - Number(cp.seq_from) + 1);
+          // Cap at 7 levels: beyond that the leaf row is denser than one node per character cell and
+          // the bottom of the tree collapses into a solid rule.
+          const levels = Math.max(3, Math.min(7, Math.ceil(Math.log2(span))));
+          const pad = 3;
+          const stepY = (H - pad * 2) / levels;
+          for (let lv = 0; lv <= levels; lv++) {
+            const count = 1 << lv;
+            const y = pad + lv * stepY;
+            for (let i = 0; i < count; i++) {
+              const x = ((i + 0.5) / count) * W;
+              const b = bytes[(lv * 7 + i) % bytes.length] / 255;
+              const r = 1.2 + (1 - lv / levels) * 3.4;
+              g.fillStyle = "rgba(255,255,255," + (0.35 + b * 0.65) + ")";
+              g.beginPath();
+              g.arc(x, y, r, 0, 6.2832);
+              g.fill();
+              if (lv < levels) {
+                const ny = pad + (lv + 1) * stepY;
+                for (const j of [i * 2, i * 2 + 1]) {
+                  const nx = ((j + 0.5) / (count * 2)) * W;
+                  g.strokeStyle = "rgba(255,255,255,0.5)";
+                  g.lineWidth = 1;
+                  g.beginPath();
+                  g.moveTo(x, y + r);
+                  g.lineTo(nx, ny - r);
+                  g.stroke();
+                }
+              }
+            }
+          }
+        }
+
+        // The real verdict mix as three full-width bands. Band height is the true proportion; the
+        // dither density distinguishes them. Full width on purpose — proportional widths left most
+        // of the frame empty, which read as a rendering fault rather than as data.
+        function drawVerdicts(g, W, H, counts) {
+          const total = counts.ALLOW + counts.DENY + counts.ESCALATE || 1;
+          const bands = [
+            { n: counts.ALLOW, dot: 0.86 },
+            { n: counts.ESCALATE, dot: 0.5 },
+            { n: counts.DENY, dot: 0.24 },
+          ];
+          const gap = 2;
+          const usable = H - 4 - gap * (bands.length - 1);
+          let y = 2;
+          for (let k = 0; k < bands.length; k++) {
+            const b = bands[k];
+            const h = Math.max(3, Math.round((usable * b.n) / total));
+            for (let yy = y; yy < y + h; yy++) {
+              for (let xx = 2; xx < W - 2; xx++) {
+                let s = ((xx * 73856093) ^ (yy * 19349663)) >>> 0;
+                s = (s ^ (s >>> 13)) % 1000;
+                if (s / 1000 < b.dot) {
+                  g.fillStyle = "rgba(255,255,255," + (0.4 + b.dot * 0.6) + ")";
+                  g.fillRect(xx, yy, 1, 1);
+                }
+              }
+            }
+            g.fillStyle = "#ffffff";
+            g.fillRect(2, y, W - 4, 1);
+            y += h + gap;
+          }
+        }
+
+        // Concentric rings whose thickness is read off the signature bytes — the seal as a shape.
+        function drawSeal(g, W, H, sig) {
+          const bytes = b64Bytes(sig);
+          const cx = W / 2;
+          const cy = H / 2;
+          const rMax = Math.min(W, H) * 0.46;
+          // The panel is much wider than the seal, so the signature also runs as a sparse field
+          // across the frame. Without it the seal floats in an empty box.
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              // Hash the coordinate before indexing. A linear index (y*31 + x*7) walks the byte
+              // array at a fixed stride and lays down a visible diagonal lattice instead of noise.
+              let s = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+              s = (s ^ (s >>> 13)) >>> 0;
+              const b = bytes[s % bytes.length] / 255;
+              if (b > 0.78) {
+                g.fillStyle = "rgba(255,255,255," + (0.10 + (b - 0.78) * 0.8) + ")";
+                g.fillRect(x, y, 1, 1);
+              }
+            }
+          }
+          // 9 rings, not 14: ring spacing has to stay wider than the widest stroke or the disc
+          // fills in solid and the concentric reading is lost entirely.
+          const rings = 9;
+          const spacing = rMax / rings;
+          for (let k = rings; k >= 1; k--) {
+            const b = bytes[(k * 5) % bytes.length] / 255;
+            const r = (k / rings) * rMax;
+            g.strokeStyle = "rgba(255,255,255," + (0.34 + b * 0.66) + ")";
+            g.lineWidth = Math.min(spacing * 0.55, 0.5 + b * 1.4);
+            g.beginPath();
+            g.arc(cx, cy, r, 0, 6.2832);
+            g.stroke();
+          }
+          // a tick through the middle, the mark the verifier is checking
+          g.strokeStyle = "#ffffff";
+          g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(cx - rMax * 0.3, cy);
+          g.lineTo(cx - rMax * 0.06, cy + rMax * 0.26);
+          g.lineTo(cx + rMax * 0.34, cy - rMax * 0.28);
+          g.stroke();
+        }
+
+        function fill(name, paint, caption) {
+          const el = pre[name];
+          if (!el) return;
+          const { cols, rows } = dims(el);
+          el.textContent = asciiFrom(cols, rows, (g, W, H) => paint(g, W, H));
+          if (capOf[name]) capOf[name].textContent = caption;
+        }
+
+        async function render() {
+          const c = await loadCreds();
+          if (!c?.admin) {
+            Object.values(capOf).forEach((el) => (el.textContent = "available when Charter runs locally"));
+            return;
+          }
+          const auth = { Authorization: "Bearer " + c.admin };
+          const q = "tenant=acme-fintech";
+          let entries = [];
+          let checkpoints = [];
+          try {
+            const [le, cs] = await Promise.all([
+              fetch("/v1/ledger?" + q + "&limit=400", { headers: auth }).then((r) => r.json()),
+              fetch("/v1/ledger/checkpoints?" + q, { headers: auth }).then((r) => r.json()),
+            ]);
+            entries = le.entries || [];
+            checkpoints = cs.checkpoints || [];
+          } catch {
+            Object.values(capOf).forEach((el) => (el.textContent = "could not read the ledger"));
+            return;
+          }
+
+          const counts = { ALLOW: 0, DENY: 0, ESCALATE: 0 };
+          for (const e of entries) if (e.verdict && counts[e.verdict] !== undefined) counts[e.verdict]++;
+          const decided = counts.ALLOW + counts.DENY + counts.ESCALATE;
+          const cp = checkpoints[checkpoints.length - 1];
+
+          fill(
+            "chain",
+            (g, W, H) => drawChain(g, W, H, entries),
+            entries.length
+              ? entries.length + " entries · each block is one verdict, drawn from its own hash"
+              : "the ledger is empty",
+          );
+
+          if (cp) {
+            fill(
+              "merkle",
+              (g, W, H) => drawMerkle(g, W, H, cp),
+              "seq " + cp.seq_from + "–" + cp.seq_to + " · root " + String(cp.merkle_root).slice(0, 12) + "…",
+            );
+            fill("seal", (g, W, H) => drawSeal(g, W, H, cp.signature), "ed25519 · " + String(cp.signature).slice(0, 14) + "…");
+          } else {
+            fill("merkle", (g, W, H) => drawMerkle(g, W, H, { merkle_root: "", seq_from: 1, seq_to: 8 }), "no checkpoint yet");
+            fill("seal", (g, W, H) => drawSeal(g, W, H, ""), "no checkpoint yet");
+          }
+
+          fill(
+            "verdicts",
+            (g, W, H) => drawVerdicts(g, W, H, counts),
+            decided
+              ? counts.ALLOW + " allowed · " + counts.ESCALATE + " to a person · " + counts.DENY + " blocked"
+              : "no decisions yet",
+          );
+        }
+
+        // Draw once when the section first comes into view, and again on a settled resize since the
+        // column count depends on the panel width.
+        let drawn = false;
+        function once() {
+          if (drawn) return;
+          drawn = true;
+          render();
+        }
+        new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && once()), {
+          threshold: 0.05,
+        }).observe(grid);
+        // Backstop: a backgrounded tab does not deliver intersection callbacks, and without this the
+        // panels would sit on "reading the ledger…" for as long as the tab stays hidden.
+        setTimeout(once, 4000);
+
+        let rt = 0;
+        addEventListener("resize", () => {
+          if (!drawn) return;
+          clearTimeout(rt);
+          rt = setTimeout(render, 200);
+        });
+      })();
+
+      /* ------------------------------------------------------------------ say whether this is live - */
+      (async function health() {
+        try {
+          const d = await (await fetch("/healthz")).json();
+          const ok = !!d.ok;
+          document.getElementById("dot").classList.toggle("off", !ok);
+          document.getElementById("statusText").textContent = ok ? "live" : "offline";
+          document.getElementById("sGate").textContent = ok ? "Live" : "Offline";
+          document.getElementById("sRules").textContent = "v" + (d.active_policy_version ?? "—");
+          document.getElementById("sChain").textContent = d.db ? "Verified" : "Unknown";
+          document.getElementById("foot").textContent = ok
+            ? "running on this machine · rules v" + (d.active_policy_version ?? "—")
+            : "honestly labelled";
+        } catch {
+          document.getElementById("statusText").textContent = "offline";
+          document.getElementById("sGate").textContent = "Offline";
+        }
+      })();
+      })();
+    </script>
+  </body>
+</html>

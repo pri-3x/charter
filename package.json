@@ -1,0 +1,54 @@
+{
+  "name": "mandate",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/gate",
+    "packages/sdk",
+    "packages/approvals",
+    "packages/verifier",
+    "packages/demo-agent"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit || tsc -b",
+    "dev": "tsx watch packages/gate/src/server.ts & tsx watch packages/approvals/src/bot.ts & wait",
+    "dev:gate": "tsx watch packages/gate/src/server.ts",
+    "dev:approvals": "tsx watch packages/approvals/src/bot.ts",
+    "console": "echo 'Operator console is served by the gate at http://localhost:$PORT/console/ — run npm run dev'",
+    "db:up": "docker compose up -d postgres && node scripts/wait-for-db.mjs",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:reset": "docker compose down -v && docker compose up -d postgres && node scripts/wait-for-db.mjs && node scripts/reset-anchors.mjs && tsx scripts/migrate.ts && tsx scripts/seed.ts",
+    "seed": "tsx scripts/seed.ts",
+    "keygen": "tsx scripts/keygen.ts",
+    "verify": "tsx packages/verifier/src/cli.ts",
+    "gen-synthetic": "tsx scripts/gen-synthetic.ts",
+    "test": "vitest run packages/",
+    "test:integration": "npm run db:reset --silent && vitest run tests/integration/",
+    "test:integration:only": "vitest run tests/integration/",
+    "tamper-demo": "tsx scripts/tamper-demo.ts",
+    "demo:agent": "tsx packages/demo-agent/src/cli.ts",
+    "adversarial": "tsx packages/demo-agent/src/cli.ts --adversarial",
+    "soak": "tsx scripts/soak.ts",
+    "demo": "tsx scripts/demo.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "pg": "^8.13.1",
+    "pino": "^9.5.0",
+    "ulid": "^2.3.0",
+    "zod": "^3.24.1"
+  }
+}

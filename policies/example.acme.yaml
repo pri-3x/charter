@@ -1,0 +1,71 @@
+version: 0            # server assigns on activation
+tenant: acme-fintech
+
+defaults:
+  unknown_tool: DENY
+  unknown_agent: DENY
+
+agents:
+  support-agent:
+    # delete_record is in scope so the agent CAN request it, but rule R3 denies it (see SPEC §8 /
+    # TEST_PLAN S9). Tools NOT listed here (e.g. wire_transfer) are out of scope → unknown_tool DENY.
+    allowed_tools: [refund, send_email, lookup_order, update_record, delete_record]
+    max_autonomy: ALLOW
+
+  # The demo agent. Note initiate_payout IS in policy scope and rule R6 ALLOWs small payouts — while
+  # the Finance AUTHORITY forbids payouts outright. The grant wins (S22): this pair exists on purpose,
+  # to show that a policy mistake cannot exceed the authority a human actually granted.
+  refunds-agent:
+    allowed_tools: [refund, send_email, lookup_order, update_record, initiate_payout]
+    max_autonomy: ALLOW
+
+  collections-agent:
+    allowed_tools: [refund, send_email, lookup_order]
+    max_autonomy: ALLOW
+
+rules:
+  - id: R1-refund-small
+    when: { tool: refund, params.amount: { lte: 500000 } }     # <= Rs 5,000 (paise)
+    verdict: ALLOW
+
+  - id: R2-refund-large
+    when: { tool: refund, params.amount: { gt: 500000 } }
+    verdict: ESCALATE
+    approvers: [role:finance-lead]
+    ttl_minutes: 240
+
+  - id: R3-no-deletes
+    when: { tool: delete_record }
+    verdict: DENY
+    reason: "Agents may never delete records."
+
+  - id: R4-email-rate
+    when: { tool: send_email }
+    limit: { window_minutes: 60, max_count: 20, key: agent }
+    verdict_on_breach: DENY
+
+  - id: R5-refund-velocity
+    when: { tool: refund }
+    limit: { window_minutes: 1440, sum_param: params.amount, max_sum: 5000000, key: principal }
+    verdict_on_breach: ESCALATE
+    approvers: [role:finance-lead]
+    ttl_minutes: 240
+
+  # Deliberately permissive: ops wrote a rule allowing small payouts. The authority document forbids
+  # payouts entirely, so the gate still denies (authority.forbidden_operation — TEST_PLAN S22).
+  - id: R6-payout-small
+    when: { tool: initiate_payout, params.amount: { lte: 100000 } }
+    verdict: ALLOW
+
+  # Read-only lookup. Without a rule the evaluator falls through to defaults.unknown_tool (DENY),
+  # so the support agent could not even read an order — see PROGRESS.md M5 note.
+  - id: R7-lookup-allow
+    when: { tool: lookup_order }
+    verdict: ALLOW
+
+  # Field updates are permitted; v1 policy has no parameter semantics, so `status=deleted` is an
+  # ordinary field write here. That is exactly the residual risk TEST_PLAN A3 asks us to document:
+  # the gate ALLOWs it and the ledger captures the full params as evidence.
+  - id: R8-update-allow
+    when: { tool: update_record }
+    verdict: ALLOW

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!env.example
+.seed/
+keys/
+anchors.log
+coverage/
+demo-attestation.html
+*.log
+.DS_Store

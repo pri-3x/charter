@@ -1,0 +1,19 @@
+{
+  "name": "@mandate/demo-agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "Customer-support demo agent: guarded tools, a deterministic scripted model (default) and a real Anthropic tool-use loop (--live), scenario driver and adversarial suite.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@mandate/sdk": "*",
+    "@mandate/shared": "*",
+    "zod": "^3.24.1"
+  }
+}

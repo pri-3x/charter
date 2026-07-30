@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@mandate/shared": ["packages/shared/src/index.ts"],
+      "@mandate/shared/*": ["packages/shared/src/*"]
+    },
+    "types": ["node"]
+  },
+  "include": ["packages/*/src/**/*.ts", "scripts/**/*.ts"]
+}

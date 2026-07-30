@@ -1,0 +1,13 @@
+{
+  "name": "@mandate/verifier",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/verify.ts",
+  "bin": { "mandate-verify": "./src/cli.ts" },
+  "exports": { ".": "./src/verify.ts" },
+  "description": "Independent verifier CLI. Re-implements JCS + hashing + Merkle + Ed25519 with ZERO imports from other workspace packages (DECISIONS D6). Connects read-only.",
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

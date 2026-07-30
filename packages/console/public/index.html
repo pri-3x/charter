@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Charter — console</title>
+    <link rel="stylesheet" href="/console/charter.css" />
+  </head>
+  <body>
+    <header class="topbar" id="top">
+      <div class="inner">
+        <nav class="pillnav" aria-label="Primary">
+          <a class="brandmark" href="/" aria-label="Charter home">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M7.5 12.4l3 3 6-6.6"
+                fill="none"
+                stroke="#ff5c1a"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </a>
+          <a href="#start" class="on">Start</a>
+          <a href="#register">Register</a>
+          <a href="#ask">Ask</a>
+          <a href="#record">Record</a>
+          <a href="#proof">Proof</a>
+        </nav>
+        <span class="grow"></span>
+        <span class="chip"><span class="dot off" id="dot"></span><span id="statusText">connecting…</span></span>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- ============================ 01 START HERE ============================ -->
+      <section id="start">
+        <div class="section-head">
+          <p class="eyebrow"><span class="n">01</span> Start here</p>
+          <h1>Your AI can spend money. Charter decides when it can.</h1>
+          <p class="lede">
+            Every time an agent tries to do something real, it asks Charter first. Charter allows it,
+            blocks it, or freezes it until a person approves.
+          </p>
+        </div>
+
+        <div class="panel">
+          <div class="row">
+            <button class="primary big" id="playBtn">Show me how it works</button>
+            <span class="cap">About 30 seconds · nothing here is pretend</span>
+          </div>
+          <div class="steps" id="steps"></div>
+        </div>
+      </section>
+
+      <!-- ============================= 02 REGISTER ============================= -->
+      <section id="register">
+        <div class="section-head">
+          <p class="eyebrow"><span class="n">02</span> The register</p>
+          <h2>Your AI agents</h2>
+          <p class="lede">
+            Each one has a person responsible for it, a spending limit, and things it may never do.
+          </p>
+        </div>
+
+        <div class="rows" id="agentList"></div>
+        <div id="agentDetail" style="margin-top: 12px"></div>
+
+        <details style="margin-top: 24px">
+          <summary>Add an agent</summary>
+          <div class="card" style="margin-top: 16px">
+            <div class="two">
+              <div class="field">
+                <label for="fName">What is it called?</label>
+                <input id="fName" placeholder="Payments Agent" />
+              </div>
+              <div class="field">
+                <label for="fOwner">Who is responsible for it?</label>
+                <select id="fOwner"></select>
+              </div>
+              <div class="field">
+                <label for="fBudget">How much per day? (₹)</label>
+                <input id="fBudget" value="1000" />
+              </div>
+              <div class="field">
+                <label for="fDays">Stop working after how many days?</label>
+                <input id="fDays" value="90" />
+              </div>
+            </div>
+            <div class="row" style="margin-top: 16px">
+              <button class="primary" id="fSubmit">Create agent</button>
+            </div>
+            <div id="fResult" style="margin-top: 12px"></div>
+          </div>
+        </details>
+      </section>
+
+      <!-- =============================== 03 ASK =============================== -->
+      <section id="ask">
+        <div class="section-head">
+          <p class="eyebrow"><span class="n">03</span> Ask for permission</p>
+          <h2>Try it yourself</h2>
+          <p class="lede">Pretend to be the AI. Ask Charter for permission to do something.</p>
+        </div>
+
+        <div class="card">
+          <div class="two">
+            <div class="field">
+              <label for="cAgent">Which agent is asking?</label>
+              <select id="cAgent"></select>
+            </div>
+            <div class="field">
+              <label for="cTool">What does it want to do?</label>
+              <select id="cTool">
+                <option value="refund">Refund money to a customer</option>
+                <option value="send_email">Send the customer an email</option>
+                <option value="lookup_order">Look up an order</option>
+                <option value="initiate_payout">Pay money out to a bank account</option>
+                <option value="delete_record">Delete a customer record</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cAmount">How much? (₹)</label>
+              <input id="cAmount" value="200" />
+            </div>
+            <div class="field" style="align-self: end">
+              <button class="primary" id="cSend" style="width: 100%">Ask Charter</button>
+            </div>
+          </div>
+          <div id="lastResult"></div>
+          <p class="cap" id="hintText" style="margin-top: 12px"></p>
+        </div>
+
+        <div id="pendingBox" style="margin-top: 16px"></div>
+      </section>
+
+      <!-- ============================== 04 RECORD ============================= -->
+      <section id="record">
+        <div class="section-head">
+          <p class="eyebrow"><span class="n">04</span> The record</p>
+          <h2>Everything that happened</h2>
+          <p class="lede">Every request, and what Charter decided. Click a row to see why.</p>
+        </div>
+
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Agent</th>
+                <th>Wanted to</th>
+                <th class="num">Amount</th>
+                <th>Charter said</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody id="feedBody"></tbody>
+          </table>
+        </div>
+        <div id="entryDetail" style="margin-top: 12px"></div>
+      </section>
+
+      <!-- =============================== 05 PROOF ============================== -->
+      <section id="proof">
+        <div class="section-head">
+          <p class="eyebrow"><span class="n">05</span> Proof</p>
+          <h2>Can this record be faked?</h2>
+          <p class="lede">
+            No. Check it yourself — your browser will re-do the maths on every record, using its own
+            independent implementation.
+          </p>
+        </div>
+
+        <div class="row">
+          <button class="btn btn-dark" id="verifyBtn">
+            <span class="lbl">Check the record</span>
+            <span class="conn"><b></b><s></s><i></i></span>
+            <span class="lbl">now</span>
+          </button>
+          <button class="btn btn-quiet" id="reportBtn">
+            <span class="lbl">Download the auditor's report</span>
+          </button>
+        </div>
+        <div id="verifyReport" style="margin-top: 16px"></div>
+        <div id="proofExtra" style="margin-top: 12px"></div>
+      </section>
+
+      <!-- =============================== ADVANCED ============================== -->
+      <section>
+        <details>
+          <summary>Advanced — rules, connection</summary>
+          <div class="two" style="margin-top: 16px">
+            <div class="card">
+              <h3>Rules</h3>
+              <p class="cap" style="margin: 6px 0 12px">
+                A new version is activated, never edited. Every decision records the version it was
+                judged under.
+              </p>
+              <div class="row" id="policyStats" style="margin-bottom: 12px"></div>
+              <textarea id="policyYaml" rows="12" spellcheck="false"></textarea>
+              <div class="row" style="margin-top: 12px">
+                <button id="policyValidate">Check for mistakes</button>
+                <button class="primary" id="policyActivate" disabled>Make these rules live</button>
+                <button class="link-btn" id="policyReload">Undo my edits</button>
+              </div>
+              <div id="policyResult" style="margin-top: 12px"></div>
+            </div>
+
+            <div class="card">
+              <h3>Connection</h3>
+              <div id="connStatus" style="margin: 10px 0"></div>
+              <div class="field">
+                <label for="setBase">Charter address (blank = this one)</label>
+                <input id="setBase" placeholder="http://localhost:8090" />
+              </div>
+              <div class="field" style="margin-top: 12px">
+                <label for="setAdmin">Admin key — reads the record</label>
+                <input id="setAdmin" type="password" placeholder="change-me-admin-key" />
+              </div>
+              <div class="field" style="margin-top: 12px">
+                <label for="setAgents">Agent keys — one per line, agent-id=key</label>
+                <textarea id="setAgents" rows="3"></textarea>
+              </div>
+              <div class="row" style="margin-top: 16px">
+                <button class="primary" id="setSave">Save</button>
+                <button id="setAuto">Load local keys</button>
+              </div>
+              <p class="cap" id="setStatus" style="margin-top: 10px"></p>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <footer>
+        Charter · a working prototype. An agent that never asks Charter is not governed by it — the
+        fix for that is holding the payment credential itself, and it is not built yet.
+      </footer>
+    </main>
+
+    <div class="toast" id="toast"></div>
+    <script>
+      // Nav: shadow the bar once the page moves, and light the section you are looking at.
+      (function chrome() {
+        const bar = document.getElementById("top");
+        addEventListener("scroll", () => bar.classList.toggle("stuck", scrollY > 8), { passive: true });
+
+        const links = [...document.querySelectorAll(".pillnav a[href^='#']")];
+        const secs = links.map((a) => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+        const io = new IntersectionObserver(
+          () => {
+            const mid = innerHeight * 0.4;
+            let cur = null;
+            for (const s of secs) {
+              const r = s.getBoundingClientRect();
+              if (r.top <= mid && r.bottom > mid) {
+                cur = s.id;
+                break;
+              }
+            }
+            links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + cur));
+          },
+          { threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
+        );
+        secs.forEach((s) => io.observe(s));
+      })();
+
+      // No build step here, so a browser holding on to an old charter.js would run stale logic
+      // against new markup. A per-load query string makes that impossible.
+      (function () {
+        var s = document.createElement("script");
+        s.src = "/console/charter.js?v=" + Date.now();
+        document.body.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

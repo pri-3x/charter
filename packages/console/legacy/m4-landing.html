@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mandate — runtime authorization + audit for AI agents</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ArcadeClassic — self-hosted pixel/arcade display face (Pizzadude, non-commercial). */
+      @font-face {
+        font-family: "ArcadeClassic";
+        src: url("/console/fonts/arcadeclassic.ttf") format("truetype");
+        font-display: swap;
+      }
+      :root {
+        --bg: #06080d;
+        --ink: #e8ecf4;
+        --muted: #8a93a6;
+        --faint: #59617440;
+        --line: #ffffff14;
+        --card: #ffffff08;
+        --card-2: #ffffff05;
+        /* accent gradient — used sparingly */
+        --a1: #6ea8ff;
+        --a2: #9d8bff;
+        --a3: #46e6c9;
+        --grad: linear-gradient(100deg, var(--a1), var(--a2) 55%, var(--a3));
+        --allow: #46e6b0;
+        --deny: #ff7a7a;
+        --escalate: #ffcc66;
+        --display: "ArcadeClassic", "Space Grotesk", monospace;
+        --head: "Space Grotesk", system-ui, sans-serif;
+        --body: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--body);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+        position: relative;
+      }
+      /* layered aurora + grid backdrop (minimal, static) */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        background:
+          radial-gradient(60vw 40vw at 72% -8%, #2a3d7a55, transparent 60%),
+          radial-gradient(46vw 40vw at 12% 4%, #3a2a6e40, transparent 62%),
+          radial-gradient(50vw 46vw at 50% 108%, #12463c40, transparent 60%);
+        filter: saturate(120%);
+      }
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background-image:
+          linear-gradient(var(--faint) 1px, transparent 1px),
+          linear-gradient(90deg, var(--faint) 1px, transparent 1px);
+        background-size: 46px 46px;
+        mask-image: radial-gradient(120vw 90vh at 50% 0%, #000 30%, transparent 78%);
+        opacity: 0.5;
+      }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 26px 0 8px;
+      }
+      .brand {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 24px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--ink);
+        line-height: 1;
+      }
+      .brand b {
+        background: var(--grad);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .status-chip {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+        border: 1px solid var(--line);
+        background: var(--card-2);
+        padding: 6px 12px;
+        border-radius: 999px;
+        backdrop-filter: blur(6px);
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: #4a5162; box-shadow: 0 0 0 0 #46e6b077; }
+      .dot.ok { background: var(--allow); animation: pulse 2.4s ease-out infinite; }
+      .dot.bad { background: var(--deny); }
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 #46e6b055; }
+        70% { box-shadow: 0 0 0 7px #46e6b000; }
+        100% { box-shadow: 0 0 0 0 #46e6b000; }
+      }
+
+      .hero { padding: 74px 0 30px; }
+      .eyebrow {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 13px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 22px;
+      }
+      .eyebrow::before { content: ""; width: 26px; height: 1px; background: var(--grad); }
+      h1.title {
+        font-family: var(--head);
+        font-weight: 700;
+        font-size: clamp(40px, 6.6vw, 74px);
+        line-height: 1.02;
+        letter-spacing: -1.6px;
+        margin: 0 0 22px;
+        max-width: 15ch;
+      }
+      h1.title .g {
+        background: var(--grad);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: shift 8s ease-in-out infinite;
+      }
+      @keyframes shift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+      p.lead { font-size: 19px; color: #aab2c4; max-width: 60ch; margin: 0 0 26px; font-weight: 450; }
+      .invariant {
+        position: relative;
+        max-width: 62ch;
+        margin: 0 0 34px;
+        padding: 16px 20px 16px 22px;
+        border-radius: 14px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        font-size: 15px;
+        color: #c7cedd;
+        overflow: hidden;
+      }
+      .invariant::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--grad); }
+      .invariant b { color: #fff; }
+
+      .cta { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+      a.btn {
+        display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+        font-family: var(--head); font-weight: 600; font-size: 15px;
+        padding: 13px 24px; border-radius: 11px; letter-spacing: 0.2px;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      }
+      a.btn.primary { color: #05101f; background: var(--grad); box-shadow: 0 8px 30px -10px #6ea8ff88; }
+      a.btn.primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -10px #8b7bffaa; }
+      a.btn.ghost { color: var(--ink); background: var(--card); border: 1px solid var(--line); }
+      a.btn.ghost:hover { border-color: #ffffff33; transform: translateY(-2px); }
+      .policy-chip {
+        font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+        display: inline-flex; align-items: center; gap: 8px; margin-left: 4px;
+      }
+      .policy-chip .sq { width: 6px; height: 6px; border-radius: 2px; background: var(--grad); }
+
+      /* pipeline */
+      .flow {
+        display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        margin: 52px 0 8px;
+      }
+      .flow .node {
+        font-family: var(--mono); font-size: 12.5px; color: #c7cedd;
+        padding: 9px 14px; border: 1px solid var(--line); border-radius: 10px;
+        background: var(--card-2); backdrop-filter: blur(4px);
+      }
+      .flow .node.accent { border-color: #6ea8ff44; color: #fff; box-shadow: inset 0 0 20px -12px #6ea8ff; }
+      .flow .arw { color: var(--muted); font-family: var(--mono); }
+
+      section.block { padding: 46px 0 10px; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+      @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+      .card {
+        position: relative; padding: 22px 22px 20px; border-radius: 16px;
+        background: var(--card); border: 1px solid var(--line);
+        transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        overflow: hidden;
+      }
+      .card::after {
+        content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+        background: var(--grad); opacity: 0; transition: opacity 0.18s ease;
+      }
+      .card:hover { transform: translateY(-3px); border-color: #ffffff22; background: #ffffff0c; }
+      .card:hover::after { opacity: 0.7; }
+      .card .tag {
+        font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--a1);
+      }
+      .card h3 { font-family: var(--head); font-weight: 600; font-size: 17px; margin: 10px 0 7px; letter-spacing: -0.3px; }
+      .card p { margin: 0; color: #99a1b3; font-size: 14px; line-height: 1.55; }
+
+      .status { padding: 46px 0 8px; }
+      .status .eyebrow { margin-bottom: 16px; }
+      .ms { display: flex; gap: 10px; flex-wrap: wrap; }
+      .ms .pill {
+        font-family: var(--mono); font-size: 12px; padding: 7px 13px; border-radius: 999px;
+        border: 1px solid var(--line); background: var(--card-2); color: var(--muted);
+      }
+      .ms .pill.done { border-color: #46e6b040; color: var(--allow); }
+
+      footer {
+        margin: 56px 0 44px; padding-top: 22px; border-top: 1px solid var(--line);
+        color: var(--muted); font-size: 12.5px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      }
+      footer code { font-family: var(--mono); color: #aeb6c6; }
+      footer .grow { flex: 1; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .dot.ok, h1.title .g { animation: none; }
+        a.btn { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="brand">Mandate<b>.</b></div>
+        <div class="status-chip"><span id="healthText">connecting…</span><span class="dot" id="healthDot"></span></div>
+      </header>
+
+      <section class="hero">
+        <span class="eyebrow">Runtime authorization · tamper-evident audit</span>
+        <h1 class="title">The <span class="g">control plane</span> for what your AI agents are allowed to do.</h1>
+        <p class="lead">
+          Mandate sits between an agent and the tools it calls — a policy gate that answers
+          ALLOW · DENY · ESCALATE on every consequential action, fused with an append-only,
+          hash-chained, Merkle-checkpointed ledger.
+        </p>
+        <div class="invariant">
+          <b>No verdict is ever returned before its ledger entry is durably committed.</b>
+          Every decision is evidence — independently verifiable, down to the exact byte.
+        </div>
+        <div class="cta">
+          <a class="btn primary" href="/console/">Open the operator console →</a>
+          <a class="btn ghost" href="/healthz">Health JSON</a>
+          <span class="policy-chip"><span class="sq"></span><span id="policyText"></span></span>
+        </div>
+
+        <div class="flow">
+          <span class="node">agent</span><span class="arw">→</span>
+          <span class="node">SDK guard()</span><span class="arw">→</span>
+          <span class="node accent">gate · policy</span><span class="arw">→</span>
+          <span class="node accent">ledger commit</span><span class="arw">→</span>
+          <span class="node">verdict</span>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="grid">
+          <div class="card"><div class="tag">policy gate</div><h3>Versioned policy engine</h3><p>First-match rules with matchers, per-agent scope + autonomy caps, and stateful count/sum limits — velocity and anti-structuring. Every check returns a full rule trace.</p></div>
+          <div class="card"><div class="tag">audit ledger</div><h3>Hash-chained &amp; append-only</h3><p>Each entry is SHA-256 chained per tenant over RFC 8785 canonical JSON — INSERT-only at the role level and enforced by a trigger. Even a superuser can't quietly rewrite it.</p></div>
+          <div class="card"><div class="tag">human-in-the-loop</div><h3>Approvals over Telegram</h3><p>ESCALATE opens a hold; an approver taps Approve or Reject; self-approval is refused; past-TTL holds expire fail-closed. Every decision is its own ledger entry.</p></div>
+          <div class="card"><div class="tag">verifiable</div><h3>Independent verifier</h3><p>A standalone CLI re-derives the chain and signed Merkle checkpoints from scratch — 1M entries in seconds. It proves the ledger untampered, or names the exact record that wasn't.</p></div>
+        </div>
+      </section>
+
+      <section class="status">
+        <span class="eyebrow">Build status</span>
+        <div class="ms">
+          <span class="pill done">M1 · chained ledger</span>
+          <span class="pill done">M2 · policy engine</span>
+          <span class="pill done">M3 · approvals + kill switch</span>
+          <span class="pill done">M4 · checkpoints + verifier</span>
+          <span class="pill">M5 · demo agent + soak</span>
+        </div>
+      </section>
+
+      <footer>
+        <span>Mandate POC · tenant <code>acme-fintech</code></span>
+        <span class="grow"></span>
+        <span>integer paise · UTC timestamps · fail-closed everywhere</span>
+      </footer>
+    </div>
+
+    <script>
+      (async () => {
+        const dot = document.getElementById("healthDot");
+        const text = document.getElementById("healthText");
+        const pol = document.getElementById("policyText");
+        try {
+          const res = await fetch("/healthz");
+          const data = await res.json();
+          const ok = res.status === 200 && data.ok;
+          dot.className = "dot " + (ok ? "ok" : "bad");
+          text.textContent = ok ? "gate online" : "gate degraded";
+          pol.textContent = data.active_policy_version == null ? "no active policy" : "active policy v" + data.active_policy_version;
+        } catch (e) {
+          dot.className = "dot bad";
+          text.textContent = "gate offline";
+          pol.textContent = "";
+        }
+      })();
+    </script>
+  </body>
+</html>

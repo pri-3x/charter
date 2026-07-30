@@ -1,0 +1,6 @@
+{
+  "name": "@mandate/console",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Static operator console (ledger viewer, check console, policy activation). Served by the gate at /console/."
+}
