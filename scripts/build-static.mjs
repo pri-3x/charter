@@ -14,9 +14,10 @@
  * There is no bundling, minification or templating here on purpose — the console has no build step,
  * and adding one just to deploy would mean the thing that ships is not the thing that was tested.
  */
-import { cpSync, mkdirSync, rmSync, existsSync, statSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, existsSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
+import { socialCard, appIcon } from "./lib/social-card.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -51,5 +52,94 @@ if (existsSync(join(src, "replay.json"))) {
   console.warn("  replay.json missing — the hosted page will show the offline state.");
   console.warn("  regenerate it with: node scripts/record-replay.mjs (needs a running local gate)");
 }
+
+// ---------------------------------------------------------------------------------------- SEO ----
+// The origin is only known at deploy time, so every absolute URL is injected here rather than
+// hard-coded in the source. Vercel exposes the production domain to the build, which means the
+// canonical and the card URLs are right without anyone remembering to update a constant.
+const origin = (
+  process.env.SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ??
+  ""
+).replace(/\/$/, "");
+
+if (!origin) {
+  console.warn("  no SITE_URL / VERCEL_PROJECT_PRODUCTION_URL — canonical, og:url and sitemap are");
+  console.warn("  omitted rather than pointed at a guess. Set SITE_URL to emit them.");
+}
+
+const indexPath = join(out, "index.html");
+let html = readFileSync(indexPath, "utf8");
+
+if (origin) {
+  const abs = (p) => origin + p;
+  // JSON-LD: only claims that are demonstrably true from the repo. No ratings, no prices, no
+  // invented org details — structured data that overstates is worse than none.
+  const ld = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Charter",
+    url: abs("/"),
+    applicationCategory: "DeveloperApplication",
+    applicationSubCategory: "AI agent authorization and audit",
+    operatingSystem: "Linux, macOS",
+    description:
+      "A policy gate that sits between an AI agent and the tools it calls, fused with a tamper-evident audit ledger. Every action is checked against a written authority before it runs; every verdict is committed to a hash chain sealed by signed Merkle checkpoints.",
+    softwareVersion: "prototype",
+    isAccessibleForFree: true,
+    author: { "@type": "Organization", name: "Charter" },
+  };
+
+  html = html.replace(
+    '<link rel="canonical" href="/" />',
+    [
+      `<link rel="canonical" href="${abs("/")}" />`,
+      `    <meta property="og:url" content="${abs("/")}" />`,
+      `    <meta property="og:image" content="${abs("/og.png")}" />`,
+      `    <meta property="og:image:width" content="1200" />`,
+      `    <meta property="og:image:height" content="630" />`,
+      `    <meta property="og:image:alt" content="The Charter mark — an open seal with a tick — beside the hash chain it writes." />`,
+      `    <meta name="twitter:image" content="${abs("/og.png")}" />`,
+      `    <script type="application/ld+json">${JSON.stringify(ld)}</script>`,
+    ].join("\n"),
+  );
+  writeFileSync(indexPath, html);
+  console.log(`  seo            ->  canonical + og + json-ld at ${origin}`);
+
+  writeFileSync(
+    join(out, "sitemap.xml"),
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${abs("/")}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`,
+  );
+  console.log("  sitemap.xml    ->  1 url (the console is intentionally excluded)");
+}
+
+// The console is an operator UI for a gate, not content. It must never be indexed — and the sitemap
+// above lists only the landing page for the same reason.
+writeFileSync(
+  join(out, "robots.txt"),
+  ["User-agent: *", "Allow: /", "Disallow: /console/", origin ? `\nSitemap: ${origin}/sitemap.xml` : ""]
+    .filter(Boolean)
+    .join("\n") + "\n",
+);
+console.log("  robots.txt     ->  allow /, disallow /console/");
+
+// ------------------------------------------------------------------------------------- images ----
+// Seeded from the recorded chain when there is one, so the card's silhouette is this deployment's
+// own hashes rather than an arbitrary pattern.
+let seed = [140, 90, 200, 60, 175, 110, 240, 75, 155, 205, 95, 185, 130, 220];
+try {
+  const rp = JSON.parse(readFileSync(join(src, "replay.json"), "utf8"));
+  const bytes = (rp.chain ?? [])
+    .map((e) => parseInt(String(e.entry_hash).replace(/^sha256:/, "").slice(0, 2), 16))
+    .filter((n) => Number.isFinite(n));
+  if (bytes.length >= 4) seed = bytes;
+} catch {
+  /* no recording — the default seed is fine */
+}
+
+writeFileSync(join(out, "og.png"), socialCard(seed));
+console.log(`  og.png         ->  1200x630 (${statSync(join(out, "og.png")).size} bytes)`);
+writeFileSync(join(out, "icon.png"), appIcon());
+console.log(`  icon.png       ->  512x512 (${statSync(join(out, "icon.png")).size} bytes)`);
 
 console.log("[build-static] done");

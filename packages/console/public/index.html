@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Charter — console</title>
+    <!-- An operator UI for a running gate, not content. Never index it: it is useless without a gate
+         behind it, and a search result landing here is a worse first impression than none. -->
+    <meta name="robots" content="noindex, nofollow" />
     <link rel="stylesheet" href="/console/charter.css" />
   </head>
   <body>
@@ -11,14 +14,27 @@
       <div class="inner">
         <nav class="pillnav" aria-label="Primary">
           <a class="brandmark" href="/" aria-label="Charter home">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
-              <path
-                d="M7.5 12.4l3 3 6-6.6"
-                fill="none"
-                stroke="#ff5c1a"
-                stroke-width="2.2"
+            <!-- The Charter mark: a seal, open at the top right. The ring is the authority, the gap
+                 is that it can be withdrawn, the tick is the verdict. Same geometry as the seal in
+                 the artefacts panel, so the logo is made of the product's own parts. -->
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle
+                cx="12"
+                cy="12"
+                r="9.25"
+                stroke="currentColor"
+                stroke-width="1.6"
                 stroke-linecap="round"
+                stroke-dasharray="51.66 6.46"
+                stroke-dashoffset="10.49"
+              />
+              <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity=".4" />
+              <path
+                d="M9 12.2l2.4 2.4 4.8-5.2"
+                stroke="#ff5c1a"
+                stroke-width="2.1"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               />
             </svg>
           </a>

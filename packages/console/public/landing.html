@@ -3,11 +3,43 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Charter — runtime authority for AI agents</title>
+    <title>Charter — runtime authority and audit for AI agents</title>
     <meta
       name="description"
-      content="Your AI can spend money. Charter decides when it can — every action checked against your written authority, big ones paused for a person, every decision written to an immutable ledger."
+      content="Charter is a policy gate and tamper-evident ledger for AI agents. Every action is checked against a written authority before it runs — allowed, blocked, or paused for a named human — and every verdict is committed to a chain nobody can edit. Maps to SOC 2, the EU AI Act and RBI controls."
     />
+
+    <!-- URL-dependent tags (canonical, og:url, og:image, the JSON-LD url) are injected at build time
+         by scripts/build-static.mjs, which knows the deploy origin. They are absent here on purpose:
+         hard-coding an origin in the source means the wrong one ships the moment the domain changes. -->
+    <link rel="canonical" href="/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#232323" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f2f0ea" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:site_name" content="Charter" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Charter — runtime authority and audit for AI agents" />
+    <meta
+      property="og:description"
+      content="A policy gate your agent has to ask before it moves money, fused with a ledger nobody can edit. Allowed, blocked, or paused for a named human — and provable afterwards."
+    />
+    <meta property="og:locale" content="en" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Charter — runtime authority and audit for AI agents" />
+    <meta
+      name="twitter:description"
+      content="A policy gate your agent has to ask before it moves money, fused with a ledger nobody can edit."
+    />
+
+    <!-- The mark, inline so the tab icon costs no request. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect width='24' height='24' rx='5' fill='%23232323'/%3E%3Ccircle cx='12' cy='12' r='7.4' stroke='%23f2f0ea' stroke-width='1.5' stroke-linecap='round' stroke-dasharray='41.3 5.2' stroke-dashoffset='8.4'/%3E%3Cpath d='M9.4 12.2l2 2 3.9-4.3' stroke='%23ff5c1a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <link rel="apple-touch-icon" href="/icon.png" />
+
     <link rel="stylesheet" href="/console/charter.css" />
     <style>
       /* ==========================================================================================
@@ -893,14 +925,27 @@
       <div class="inner">
         <nav class="pillnav" aria-label="Primary">
           <span class="brandmark" aria-label="Charter">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
-              <path
-                d="M7.5 12.4l3 3 6-6.6"
-                fill="none"
-                stroke="#ff5c1a"
-                stroke-width="2.2"
+            <!-- The Charter mark: a seal, open at the top right. The ring is the authority, the gap
+                 is that it can be withdrawn, the tick is the verdict. Same geometry as the seal in
+                 the artefacts panel, so the logo is made of the product's own parts. -->
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle
+                cx="12"
+                cy="12"
+                r="9.25"
+                stroke="currentColor"
+                stroke-width="1.6"
                 stroke-linecap="round"
+                stroke-dasharray="51.66 6.46"
+                stroke-dashoffset="10.49"
+              />
+              <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity=".4" />
+              <path
+                d="M9 12.2l2.4 2.4 4.8-5.2"
+                stroke="#ff5c1a"
+                stroke-width="2.1"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               />
             </svg>
           </span>
@@ -915,6 +960,8 @@
         <span class="chip"><span class="dot off" id="dot"></span><span id="statusText">checking</span></span>
       </div>
     </header>
+
+    <main id="content">
 
     <!-- ============================================ HERO ============================================ -->
     <section class="hero">
@@ -1402,10 +1449,12 @@
       </div>
     </section>
 
-    <div class="foot">
+    </main>
+
+    <footer class="foot">
       <span>Charter · a working prototype</span>
       <span id="foot">honestly labelled</span>
-    </div>
+    </footer>
 
     <script>
       "use strict";
@@ -1464,6 +1513,47 @@
         { threshold: 0.1 },
       );
       document.querySelectorAll(".reveal, .lines").forEach((el) => io.observe(el));
+
+      // Scroll-spy: box the nav item for the section you are actually reading. Driven off scroll
+      // rather than IntersectionObserver entries directly — with sections this tall, several are
+      // intersecting at once and "which one is under the reading line" is the question that matters.
+      (function scrollSpy() {
+        const links = [...document.querySelectorAll(".pillnav a[href^='#']")];
+        const targets = links
+          .map((a) => ({ a, sec: document.querySelector(a.getAttribute("href")) }))
+          .filter((t) => t.sec);
+        if (!targets.length) return;
+
+        let queued = false;
+        function mark() {
+          queued = false;
+          const line = innerHeight * 0.38; // the reading line, a little above centre
+          let current = null;
+          for (const t of targets) {
+            const r = t.sec.getBoundingClientRect();
+            if (r.top <= line && r.bottom > line) current = t.a;
+          }
+          // Past the last section (the CTA band and footer) keep the last one lit rather than
+          // dropping every highlight, which reads as the nav breaking.
+          if (!current && scrollY > 4) {
+            const last = targets[targets.length - 1];
+            if (last.sec.getBoundingClientRect().bottom <= line) current = last.a;
+          }
+          for (const t of targets) t.a.classList.toggle("on", t.a === current);
+        }
+        addEventListener(
+          "scroll",
+          () => {
+            if (!queued) {
+              queued = true;
+              requestAnimationFrame(mark);
+            }
+          },
+          { passive: true },
+        );
+        addEventListener("resize", mark, { passive: true });
+        mark();
+      })();
 
       /* ------------------------------------------------------------------- the character field ---- */
       // A grid of monospace cells filled with the rulebook, repeated. The dim field is painted once

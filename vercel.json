@@ -7,11 +7,30 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, must-revalidate" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "DENY" }
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" }
       ]
+    },
+    {
+      "source": "/((?!console/).*\\.html)?",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/console/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, must-revalidate" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    },
+    {
+      "source": "/(og|icon).png",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
+    },
+    {
+      "source": "/replay.json",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
     }
   ]
 }

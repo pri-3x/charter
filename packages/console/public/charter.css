@@ -503,16 +503,45 @@ section {
   border-bottom-color: var(--ghost);
 }
 
+/* The nav is centred in the full width and the status chip is pinned to the right edge, rather than
+   the two sharing a flex row — that way the bar stays optically centred no matter how wide the chip's
+   text gets ("connecting…" is a lot longer than "live"). */
 .topbar .inner {
+  position: relative;
   max-width: 1240px;
   margin: 0 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s-16);
+  min-height: 38px;
 }
 
+.topbar .chip {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Kept as a no-op so the existing markup in both pages needs no edit. */
 .grow {
-  flex: 1;
+  display: none;
+}
+
+/* Below this the centred nav and the pinned chip would collide: drop the chip, let the nav scroll. */
+@media (max-width: 900px) {
+  .topbar .inner {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .topbar .inner::-webkit-scrollbar {
+    display: none;
+  }
+  .topbar .chip {
+    display: none;
+  }
 }
 
 /* pill nav: dark bar, mono items, hairline ring */
