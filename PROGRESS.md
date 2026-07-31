@@ -12,7 +12,7 @@ has no build step and is still served straight out of `packages/console/public`.
 which left roughly a third of the fold empty above the eyebrow. Changed to `margin: auto 0`, which
 centres the block and pushes the status bar to the floor; added the mono qualifier line under the
 lede. Measured against the reference: eyebrow now lands at 21% of the fold and the buttons at 74%
-(reference: 22% / 68%). Section rhythm tightened from `--s-80`/`--s-48` to `--s-64`/`--s-32`.
+(reference: 22% / 68%). Section rhythm tightened from `--s-80`/`--s-48` to `--s-64`/`--s-32`.....
 
 **2 — `§02 The rules` — the character field.** A new full-bleed section whose background is one
 sticky viewport-height canvas holding the rulebook set as a monospace character grid (18 clauses,
