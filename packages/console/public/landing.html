@@ -351,19 +351,6 @@
         color: rgba(242, 240, 234, 0.62);
       }
 
-      /* A word set solid, the way a redacted line reads. It reveals on hover of the heading. */
-      .redact .blk {
-        display: inline-block;
-        background: var(--paper);
-        color: var(--paper);
-        border-radius: 2px;
-        padding: 0 0.06em;
-        transition: color 0.28s var(--ease);
-      }
-      .redact:hover .blk {
-        color: var(--ink);
-      }
-
       .feats {
         grid-column: 2;
         list-style: none;
@@ -402,6 +389,69 @@
         .feats {
           gap: var(--s-32);
         }
+      }
+
+      /* --------------------------------------------------------------------- the control references */
+      .ctrl {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1px;
+        background: rgba(242, 240, 234, 0.16);
+        box-shadow: inset 0 0 0 1px rgba(242, 240, 234, 0.16);
+        border-radius: var(--r-8);
+        overflow: hidden;
+      }
+      .ctrl > div {
+        background: var(--carbon);
+        padding: var(--s-24);
+        display: grid;
+        gap: var(--s-12);
+        align-content: start;
+      }
+      .ctrl .fw {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .ctrl ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: var(--s-8);
+      }
+      .ctrl li {
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: rgba(242, 240, 234, 0.62);
+        padding-left: var(--s-12);
+        position: relative;
+      }
+      .ctrl li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.62em;
+        width: 4px;
+        height: 1px;
+        background: rgba(242, 240, 234, 0.4);
+      }
+      .ctrl li b {
+        color: var(--paper);
+        font-weight: 400;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .ctrl-note {
+        margin-top: var(--s-16);
+        max-width: 76ch;
+        color: rgba(242, 240, 234, 0.42);
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 12px;
+        line-height: 1.6;
       }
 
       /* ------------------------------------------------------------------------- the ASCII artefacts */
@@ -741,12 +791,78 @@
         padding: var(--s-80) 0;
         text-align: center;
       }
+      /* Wide enough that the email field and the button sit on one row (260 + 8 + ~230). At 52ch the
+         button wrapped underneath. The prose is capped separately so it does not get a 64ch measure. */
       .cta-band .inner {
         display: grid;
         gap: var(--s-24);
         justify-items: center;
-        max-width: 40ch;
+        max-width: 560px;
         margin: 0 auto;
+        padding: 0 var(--s-24);
+      }
+      .cta-band .inner h2,
+      .cta-band .inner .lede {
+        max-width: 46ch;
+      }
+
+      /* ------------------------------------------------------------------------------- the waitlist */
+      .wait {
+        display: flex;
+        gap: var(--s-8);
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+      }
+      .wait input {
+        flex: 1 1 260px;
+        min-width: 0;
+        height: 44px;
+        padding: 0 var(--s-16);
+        border: 0;
+        border-radius: var(--r-4);
+        background: rgba(242, 240, 234, 0.08);
+        box-shadow: inset 0 0 0 1px rgba(242, 240, 234, 0.22);
+        color: var(--paper);
+        font-family: var(--mono);
+        font-size: 13px;
+        letter-spacing: 0.01em;
+      }
+      .wait input::placeholder {
+        color: rgba(242, 240, 234, 0.34);
+      }
+      .wait input:focus-visible {
+        outline: 0;
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .wait input[aria-invalid="true"] {
+        box-shadow: inset 0 0 0 1px var(--deny-lift);
+      }
+      .wait button {
+        height: 44px;
+        flex: 0 0 auto;
+      }
+      .wait-note {
+        color: rgba(242, 240, 234, 0.42);
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 12px;
+        text-align: center;
+        max-width: 46ch;
+      }
+      .wait-note.ok {
+        color: var(--allow-lift);
+      }
+      .wait-note.bad {
+        color: var(--deny-lift);
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
       }
 
       .foot {
@@ -827,8 +943,8 @@
               <span class="conn"><b></b><s></s><i></i></span>
               <span class="lbl"><span data-odo>decide</span></span>
             </a>
-            <a class="btn btn-quiet odo-trigger" href="/console/">
-              <span class="lbl"><span data-odo>Open the console</span></span>
+            <a class="btn btn-quiet odo-trigger" href="#waitlist">
+              <span class="lbl"><span data-odo>Join the waitlist</span></span>
             </a>
           </div>
         </div>
@@ -895,10 +1011,7 @@
       <div class="field-fg wrap">
         <div class="field-head">
           <p class="eyebrow"><span class="n">02</span> The rules</p>
-          <h2 class="redact">
-            <span class="blk"><span>Every</span></span> rule decided before the agent runs. So
-            nothing is negotiated in the moment.
-          </h2>
+          <h2>Every rule decided before the agent runs. So nothing is negotiated in the moment.</h2>
           <p class="lede">
             Behind this text is the whole rulebook, every clause the gate can reach for. Drag the
             pointer through it. Click to push it.
@@ -1030,9 +1143,9 @@
       </div>
 
       <pre class="code">
-<span class="kw">import</span> { MandateClient } <span class="kw">from</span> <span class="s">"@mandate/sdk"</span>;
+<span class="kw">import</span> { CharterClient } <span class="kw">from</span> <span class="s">"@charter/sdk"</span>;
 
-<span class="kw">const</span> charter = <span class="kw">new</span> <span class="f">MandateClient</span>({
+<span class="kw">const</span> charter = <span class="kw">new</span> <span class="f">CharterClient</span>({
   baseUrl: <span class="s">"http://localhost:8090"</span>,
   apiKey: process.env.<span class="ac">CHARTER_AGENT_KEY</span>,
   agentId: <span class="s">"refunds-agent"</span>,
@@ -1116,7 +1229,49 @@
       <div class="wrap">
         <div class="sec-head">
           <p class="eyebrow"><span class="n">06</span> Compliance</p>
-          <h2>The evidence a regulator actually asks for.</h2>
+          <h2>Built for the audit, not just the demo.</h2>
+          <p class="lede">
+            Charter's export maps every decision to named controls under <b>SOC 2</b>, the
+            <b>EU AI Act</b> and the <b>RBI IT Governance Direction</b> — with the clause, the
+            expectation, and the field in the pack that proves it. Control-level mapping, not legal
+            advice.
+          </p>
+        </div>
+
+        <!-- The exact control_reference strings the attestation builder emits, so what the page
+             claims and what the export says are the same text. -->
+        <div class="ctrl">
+          <div>
+            <p class="fw">SOC 2</p>
+            <ul>
+              <li><b>TSC CC7.2 / CC7.3</b> — monitoring for anomalies, evaluation of security events</li>
+              <li><b>TSC CC8.1</b> — change management for authorisation logic</li>
+            </ul>
+          </div>
+          <div>
+            <p class="fw">EU AI Act</p>
+            <ul>
+              <li><b>Reg. (EU) 2024/1689, Art. 12</b> — record-keeping / automatic logging</li>
+              <li><b>Art. 14</b> — human oversight, intervention and interruption</li>
+            </ul>
+          </div>
+          <div>
+            <p class="fw">RBI</p>
+            <ul>
+              <li><b>IT Governance Direction, 2023</b> — maker-checker / dual authorisation</li>
+              <li>Audit trail over straight-through processing</li>
+              <li>Delegation of financial authority and limit discipline</li>
+            </ul>
+          </div>
+        </div>
+
+        <p class="cap ctrl-note">
+          Article 12 and 14 bind systems in scope as high-risk under Annex III — Charter produces the
+          evidence either way, but whether your agent is in scope is your counsel's call, not ours.
+        </p>
+
+        <div class="sec-head" style="margin-top: var(--s-48)">
+          <h3 style="font-size: 20px">And the six questions underneath all of it</h3>
           <p class="lede">
             Not a dashboard screenshot. Six specific questions an auditor puts to you about an
             automated system, and the artefact in Charter that answers each one.
@@ -1214,17 +1369,36 @@
       </div>
     </section>
 
-    <section class="cta-band band">
+    <section class="cta-band band" id="waitlist">
       <div class="inner">
-        <p class="eyebrow" style="justify-content: center"><span class="n">↘</span> Try it</p>
-        <h2>See it decide, then try to fake the record.</h2>
-        <div class="cta-row" style="justify-content: center">
-          <a class="btn btn-light odo-trigger" href="/console/">
-            <span class="lbl"><span data-odo>Open the</span></span>
+        <p class="eyebrow" style="justify-content: center"><span class="n">↘</span> Early access</p>
+        <h2>Get Charter when it is ready for your agents.</h2>
+        <p class="lede" style="color: rgba(242, 240, 234, 0.62)">
+          It is a working prototype today, not a hosted product. Leave an email and you will hear
+          once it can hold a real credential.
+        </p>
+
+        <form class="wait" id="waitForm" novalidate>
+          <label class="sr-only" for="waitEmail">Email address</label>
+          <input
+            id="waitEmail"
+            name="email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            placeholder="you@company.com"
+            required
+          />
+          <button class="btn btn-light odo-trigger" type="submit" id="waitBtn">
+            <span class="lbl"><span data-odo>Join the</span></span>
             <span class="conn"><b></b><s></s><i></i></span>
-            <span class="lbl"><span data-odo>console</span></span>
-          </a>
-        </div>
+            <span class="lbl"><span data-odo>waitlist</span></span>
+          </button>
+        </form>
+
+        <p class="cap wait-note" id="waitNote">
+          Just your email. No tracking on this page, and nothing passed to anyone else.
+        </p>
       </div>
     </section>
 
@@ -2237,7 +2411,7 @@
           lDot.classList.remove("off");
           lDot.classList.add("rec");
           lHead.textContent =
-            "Recorded run · " + recordedOn(replay.recorded_at) + " · run Charter locally to decide live";
+            "Real verdicts · recorded " + recordedOn(replay.recorded_at);
         } else {
           lDot.classList.add("off");
           lHead.textContent = "Static copy — run Charter locally and this decides for real";
@@ -2266,7 +2440,9 @@
         }
         running = false;
         if (seen >= 12) {
-          const tail = replay && !creds ? " (recorded)" : "";
+          // The completion line replaces the header, so it has to carry the label too — otherwise the
+          // one persistent "this is a replay" marker in this section disappears at the end of the run.
+          const tail = replay && !creds ? " · replay of a real run" : "";
           lHead.textContent = `That is the whole product — ${tally.ALLOW} allowed, ${tally.ESCALATE} to a person, ${tally.DENY} blocked${tail}`;
           const again = document.getElementById("again");
           again.innerHTML = `<button id="againBtn" style="height:26px;font-size:10px">Run it again</button>`;
@@ -2598,7 +2774,7 @@
           }
 
           const decided = counts.ALLOW + counts.DENY + counts.ESCALATE;
-          const mark = recorded ? " · recorded" : "";
+          const mark = recorded ? " · from a real run" : "";
           const cp = checkpoints[checkpoints.length - 1];
 
           fill(
@@ -2653,6 +2829,82 @@
         });
       })();
 
+      /* ----------------------------------------------------------------------------- the waitlist -- */
+      // ─────────────────────────────────────────────────────────────────────────────────────────────
+      // SET THIS to a form endpoint that accepts a POST (Formspree, Tally, a Vercel function, …).
+      // While it is empty the form does NOT pretend to work: it opens a prefilled mail draft instead,
+      // so an address is never collected into nothing. A form that silently drops what it is given is
+      // worse than no form, and on this page in particular it would be self-refuting.
+      const WAITLIST_ENDPOINT = "";
+      const WAITLIST_MAILTO = "priyanshu@totofinance.co";
+      // ─────────────────────────────────────────────────────────────────────────────────────────────
+      (function waitlist() {
+        const form = document.getElementById("waitForm");
+        if (!form) return;
+        const input = document.getElementById("waitEmail");
+        const btn = document.getElementById("waitBtn");
+        const note = document.getElementById("waitNote");
+        const REST = note.textContent;
+
+        const say = (msg, kind) => {
+          note.textContent = msg;
+          note.classList.toggle("ok", kind === "ok");
+          note.classList.toggle("bad", kind === "bad");
+        };
+
+        // Deliberately permissive: the server is the only thing that can really decide, and rejecting
+        // an unusual-but-valid address is a worse failure than accepting a typo.
+        const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const email = input.value.trim();
+
+          if (!looksLikeEmail(email)) {
+            input.setAttribute("aria-invalid", "true");
+            say("That does not look like an email address.", "bad");
+            input.focus();
+            return;
+          }
+          input.removeAttribute("aria-invalid");
+
+          if (!WAITLIST_ENDPOINT) {
+            // No endpoint wired up. Hand the address back to the visitor in a mail draft rather than
+            // accept it and lose it — and say exactly that, instead of showing a fake success.
+            const subject = encodeURIComponent("Charter waitlist");
+            const body = encodeURIComponent(`Add me to the Charter waitlist: ${email}\n`);
+            location.href = `mailto:${WAITLIST_MAILTO}?subject=${subject}&body=${body}`;
+            say("Opening a mail draft — the waitlist has no server behind it yet.", null);
+            return;
+          }
+
+          btn.disabled = true;
+          say("Sending…", null);
+          try {
+            const r = await fetch(WAITLIST_ENDPOINT, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ email, source: "charter-landing" }),
+            });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            form.reset();
+            say("You are on the list. You will hear when it can hold a credential.", "ok");
+          } catch (err) {
+            // Never claim success on a failed POST: the visitor needs to know it did not land.
+            say("That did not send (" + err.message + "). Email " + WAITLIST_MAILTO + " instead.", "bad");
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        input.addEventListener("input", () => {
+          if (note.classList.contains("bad")) {
+            input.removeAttribute("aria-invalid");
+            say(REST, null);
+          }
+        });
+      })();
+
       /* ------------------------------------------------------------------ say whether this is live - */
       // Three states, never conflated: a reachable gate is "live", a hosted copy with a recording is
       // "recorded", and neither is "offline". "Offline" on a hosted page read as a product that had
@@ -2682,11 +2934,11 @@
         if (rp) {
           dot.classList.remove("off");
           dot.classList.add("rec");
-          set("statusText", "recorded");
-          set("sGate", "Recorded");
+          set("statusText", "replay");
+          set("sGate", "Replay");
           set("sRules", "v" + (rp.gate?.policy_version ?? "—"));
           set("sChain", (rp.checkpoints?.length ?? 0) + " sealed");
-          set("foot", "a recorded run · " + recordedOn(rp.recorded_at) + " · run it yourself to decide live");
+          set("foot", "replaying a real run · " + recordedOn(rp.recorded_at));
         } else {
           dot.classList.add("off");
           set("statusText", "offline");

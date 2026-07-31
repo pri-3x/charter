@@ -739,7 +739,7 @@ async function verify({ quiet = false } = {}) {
   if (!quiet) $("verifyReport").innerHTML = `<p class="muted">Checking every record…</p>`;
   const t0 = performance.now();
   const entries = await fetchAll();
-  const genesis = await tok("MANDATE_GENESIS:" + store.tenant);
+  const genesis = await tok("CHARTER_GENESIS:" + store.tenant);
   const breaks = [];
   let prev = null;
   for (const e of entries) {

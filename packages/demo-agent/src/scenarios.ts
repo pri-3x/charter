@@ -1,4 +1,4 @@
-import { jcsHashToken } from "@mandate/shared";
+import { jcsHashToken } from "@charter/shared";
 import { agentSays, agentThinks, customerSays, fail, heading, note, pass, printLedgerSummary, printStep, section, style, warn } from "./narrative.js";
 import { formatPaise } from "./money.js";
 import { LedgerReader, verifyChainLinks, type LedgerEntry } from "./ledger.js";

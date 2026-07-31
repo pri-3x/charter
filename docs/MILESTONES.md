@@ -41,7 +41,7 @@ Tasks:
    velocity readout; inline buttons; telegram user → principal mapping; APPROVAL ledger entries;
    message edit after decision; 30s expiry sweeper → EXPIRED (fail closed).
 3. POST /v1/agents/:id/suspend + gate check + AGENT_SUSPENDED entry.
-4. SDK (`packages/sdk`): MandateClient, guard(), hold polling, typed errors, result reporting.
+4. SDK (`packages/sdk`): CharterClient, guard(), hold polling, typed errors, result reporting.
 Acceptance: S5–S8, S15; re-run S1–S4.
 Manual check: real Telegram round-trip with your own bot token and chat.
 

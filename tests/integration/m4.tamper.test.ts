@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
-import { loadEnv, canonicalize, sha256Token, jcsHashToken } from "@mandate/shared";
-import { makePool, appendEntry, loadSigner, createPendingCheckpoint } from "@mandate/gate";
-import type { Pool } from "@mandate/gate";
-import { verify } from "@mandate/verifier";
-import type { Anchor } from "@mandate/verifier";
+import { loadEnv, canonicalize, sha256Token, jcsHashToken } from "@charter/shared";
+import { makePool, appendEntry, loadSigner, createPendingCheckpoint } from "@charter/gate";
+import type { Pool } from "@charter/gate";
+import { verify } from "@charter/verifier";
+import type { Anchor } from "@charter/verifier";
 
 /**
  * M4 tamper acceptance — T1–T6. The gate seals a signed Merkle checkpoint over the whole chain; the
@@ -19,7 +19,7 @@ loadEnv();
 const TENANT = "acme-fintech";
 const su = new pg.Client({ connectionString: process.env.POSTGRES_SUPERUSER_URL });
 const verifierUrl = process.env.VERIFIER_DATABASE_URL!;
-const publicKeyPem = readFileSync(resolve(process.cwd(), process.env.MANDATE_SIGNING_PUB_PATH ?? "./keys/signing.pub.pem"), "utf8");
+const publicKeyPem = readFileSync(resolve(process.cwd(), process.env.CHARTER_SIGNING_PUB_PATH ?? "./keys/signing.pub.pem"), "utf8");
 
 let gatePool: Pool;
 let seqFrom = 0, seqTo = 0, victim = 0;
@@ -36,7 +36,7 @@ const enable = (t: string) => su.query(`ALTER TABLE ${t} ENABLE TRIGGER ${t === 
 beforeAll(async () => {
   await su.connect();
   gatePool = makePool(process.env.DATABASE_URL!);
-  const signer = loadSigner(resolve(process.cwd(), process.env.MANDATE_SIGNING_KEY_PATH ?? "./keys/signing.pem"));
+  const signer = loadSigner(resolve(process.cwd(), process.env.CHARTER_SIGNING_KEY_PATH ?? "./keys/signing.pem"));
 
   // append a handful of entries, then seal every pending entry into one signed checkpoint
   const client = await gatePool.connect();

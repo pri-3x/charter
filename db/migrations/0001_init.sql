@@ -1,5 +1,5 @@
--- Mandate POC schema (PostgreSQL 16). Applied by db/migrations/0001_init.sql (copy of this file).
--- Roles: mandate_gate (app), mandate_verifier (read-only). Create DB as superuser, then:
+-- Charter POC schema (PostgreSQL 16). Applied by db/migrations/0001_init.sql (copy of this file).
+-- Roles: charter_gate (app), charter_verifier (read-only). Create DB as superuser, then:
 
 CREATE TABLE tenants (
   id            text PRIMARY KEY,              -- 'acme-fintech'
@@ -122,12 +122,12 @@ CREATE TRIGGER checkpoints_no_update BEFORE UPDATE OR DELETE ON checkpoints
 
 -- ===== roles =====
 -- run as superuser; passwords via env in docker compose init
--- CREATE ROLE mandate_gate LOGIN PASSWORD '...';
--- CREATE ROLE mandate_verifier LOGIN PASSWORD '...';
-GRANT SELECT, INSERT ON ledger_entries, checkpoints TO mandate_gate;
+-- CREATE ROLE charter_gate LOGIN PASSWORD '...';
+-- CREATE ROLE charter_verifier LOGIN PASSWORD '...';
+GRANT SELECT, INSERT ON ledger_entries, checkpoints TO charter_gate;
 GRANT SELECT, INSERT, UPDATE ON tenants, agents, principals, policies, ledger_seq,
-  holds, limit_counters, idempotency_keys TO mandate_gate;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO mandate_verifier;
+  holds, limit_counters, idempotency_keys TO charter_gate;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO charter_verifier;
 -- NOTE: no UPDATE/DELETE on ledger_entries/checkpoints for anyone but superuser;
 -- the trigger blocks even superuser unless it disables the trigger (tamper tests do exactly
 -- that deliberately: ALTER TABLE ledger_entries DISABLE TRIGGER ledger_no_update).

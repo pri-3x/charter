@@ -17,7 +17,7 @@
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadEnv } from "@mandate/shared";
+import { loadEnv } from "@charter/shared";
 import {
   GuardedSession,
   LedgerReader,
@@ -34,7 +34,7 @@ import {
   fail,
   warn,
   A1_INJECTION,
-} from "@mandate/demo-agent";
+} from "@charter/demo-agent";
 
 loadEnv();
 

@@ -1,10 +1,9 @@
 # SPEC.md — Charter POC technical specification
 
-> **Naming.** The product is **Charter** on every human-visible surface (UI, docs, CLI output). The
-> protocol constants keep their original spelling on purpose — the genesis string
-> `MANDATE_GENESIS:<tenant>`, the DB roles `mandate_gate`/`mandate_verifier`, the `@mandate/*`
-> package scope — because rotating them would invalidate every entry hash already committed
-> (DECISIONS D19).
+> **Naming.** **Charter** everywhere, including the protocol constants: the genesis string
+> `CHARTER_GENESIS:<tenant>`, the DB roles `charter_gate`/`charter_verifier`, the `@charter/*`
+> package scope, the `CHARTER_*` env vars and the `charter` database. Renaming the genesis string
+> re-bases every chain — that cost was paid once, on purpose, at POC stage (DECISIONS **D19a**).
 
 Charter = registry of chartered agents + versioned authority grants + policy enforcement point
 ("gate") + tamper-evident audit ledger + human approval flow.
@@ -196,7 +195,7 @@ INSERT checkpoints row, append signed JSON line to `anchors.log`, log at info. C
 worker selects entries with seq > last checkpoint's seq_to.
 
 ## 5. Verifier CLI (`packages/verifier`)
-`mandate-verify --tenant acme-fintech [--from-seq N]` with read-only DB creds. Steps:
+`charter-verify --tenant acme-fintech [--from-seq N]` with read-only DB creds. Steps:
 1. Recompute entry_hash for every entry from payload (own JCS impl) — mismatch ⇒ FAIL @ seq.
 2. Walk chain: seq gaps, prev_hash continuity, column/payload consistency — break ⇒ FAIL @ seq.
 3. Rebuild each checkpoint's Merkle root; verify Ed25519 signature (public key via env/file);
@@ -215,8 +214,8 @@ APPROVAL entry with decision EXPIRED (decided_by null) → hold status EXPIRED.
 
 ## 7. SDK (`packages/sdk`)
 ```ts
-const mandate = new MandateClient({ baseUrl, apiKey, agentId: "support-agent" });
-const refund = mandate.guard("refund", realRefundFn, { principal: () => currentUser });
+const charter = new CharterClient({ baseUrl, apiKey, agentId: "support-agent" });
+const refund = charter.guard("refund", realRefundFn, { principal: () => currentUser });
 await refund({ order_id: "O-9912", amount: 1200000 });
 ```
 guard(): calls check (with generated Idempotency-Key + reasoning from options); ALLOW → run fn,

@@ -14,9 +14,12 @@ the accountability machinery every human employee has. Charter is five modules o
 | **Approvals** | An escalation freezes the action and sends a context packet to a human. Timeouts deny. Self-approval is refused. |
 | **Evidence** | Per-tenant hash chain, signed Merkle checkpoints, an independent verifier that shares zero code with the writer, and a regulator-mapped attestation pack. |
 
-> **Naming:** the product is Charter. The wire format is not renamed — the genesis string
-> (`MANDATE_GENESIS:<tenant>`), the DB roles and the `@mandate/*` package scope keep their original
-> spelling, because changing them would invalidate every hash already committed (DECISIONS D19).
+> **Naming:** everything is Charter, all the way down — the genesis string
+> `CHARTER_GENESIS:<tenant>`, the DB roles `charter_gate`/`charter_verifier`, the `@charter/*`
+> package scope, the `CHARTER_*` env vars and the `charter` database. The earlier split (product
+> name Charter, wire format unchanged) was reversed deliberately: see DECISIONS **D19a**. Moving the
+> genesis string re-bases every hash chain, so any ledger written before that commit fails
+> verification at seq 1 by design.
 
 Read in this order: `CLAUDE.md` → `docs/DECISIONS.md` → `docs/SPEC.md` → `docs/API.md` →
 `docs/TEST_PLAN.md` → `PROGRESS.md`.

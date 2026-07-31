@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { canonicalize } from "./jcs.js";
 
-/** All hashes in Mandate are stored/compared with this prefix (see SPEC 4.1 payload example). */
+/** All hashes in Charter are stored/compared with this prefix (see SPEC 4.1 payload example). */
 export const HASH_PREFIX = "sha256:";
 
 /** Raw SHA-256 hex digest of a UTF-8 string or Buffer. No prefix. */
@@ -21,10 +21,10 @@ export function jcsHashToken(value: unknown): string {
 
 /**
  * Genesis prev_hash for a tenant's chain (DECISIONS D4): SHA-256 of the UTF-8 string
- * `MANDATE_GENESIS:<tenant_id>`, as a token.
+ * `CHARTER_GENESIS:<tenant_id>`, as a token.
  */
 export function genesisPrevHash(tenantId: string): string {
-  return sha256Token(`MANDATE_GENESIS:${tenantId}`);
+  return sha256Token(`CHARTER_GENESIS:${tenantId}`);
 }
 
 /**

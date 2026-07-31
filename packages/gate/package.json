@@ -1,5 +1,5 @@
 {
-  "name": "@mandate/gate",
+  "name": "@charter/gate",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@fastify/static": "^10.1.0",
-    "@mandate/shared": "*",
+    "@charter/shared": "*",
     "fastify": "^5.2.0",
     "pg": "^8.13.1",
     "pino": "^9.5.0",

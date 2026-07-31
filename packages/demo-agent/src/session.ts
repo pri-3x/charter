@@ -1,14 +1,14 @@
 import { performance } from "node:perf_hooks";
-import type { Verdict } from "@mandate/shared";
+import type { Verdict } from "@charter/shared";
 import {
-  MandateClient,
+  CharterClient,
   PolicyDeniedError,
   HoldRejectedError,
   HoldExpiredError,
-  MandateError,
+  CharterError,
   type CheckAction,
   type CheckResponse,
-} from "@mandate/sdk";
+} from "@charter/sdk";
 import { FixtureWorld, createRawTools, type RawTools, type ToolName } from "./tools.js";
 
 /**
@@ -20,7 +20,7 @@ import { FixtureWorld, createRawTools, type RawTools, type ToolName } from "./to
  *
  * `guard()` deliberately hides the gate's response from the caller (ALLOW just runs, DENY throws).
  * The demo needs to NARRATE the verdict — rule_id, reason, hold id, ledger entry id — so we subclass
- * MandateClient and observe `check()` on the way through. Nothing about the enforcement path changes:
+ * CharterClient and observe `check()` on the way through. Nothing about the enforcement path changes:
  * the real SDK still makes the call and still decides whether the tool runs.
  */
 
@@ -63,10 +63,10 @@ class EscalationPendingError extends Error {
   }
 }
 
-/** MandateClient that reports every gate verdict to the session (see the note above). */
-class ObservingClient extends MandateClient {
+/** CharterClient that reports every gate verdict to the session (see the note above). */
+class ObservingClient extends CharterClient {
   constructor(
-    opts: ConstructorParameters<typeof MandateClient>[0],
+    opts: ConstructorParameters<typeof CharterClient>[0],
     private readonly observe: (res: CheckResponse) => void,
   ) {
     super(opts);
@@ -232,7 +232,7 @@ export class GuardedSession {
       else if (err instanceof EscalationPendingError) outcome = "HELD";
       else outcome = "ERROR";
       error = err instanceof Error ? err.message : String(err);
-      if (err instanceof MandateError && outcome === "ERROR" && err.status !== undefined) {
+      if (err instanceof CharterError && outcome === "ERROR" && err.status !== undefined) {
         error = `${error} (HTTP ${err.status})`;
       }
     }

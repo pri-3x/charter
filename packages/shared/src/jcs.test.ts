@@ -138,7 +138,7 @@ describe("JCS canonicalize — properties (1000 random values)", () => {
 describe("hashing helpers", () => {
   it("genesis prev_hash is stable and tenant-specific", () => {
     const a = genesisPrevHash("acme-fintech");
-    expect(a).toBe(sha256Token("MANDATE_GENESIS:acme-fintech"));
+    expect(a).toBe(sha256Token("CHARTER_GENESIS:acme-fintech"));
     expect(a).not.toBe(genesisPrevHash("other-tenant"));
     expect(a.startsWith("sha256:")).toBe(true);
   });

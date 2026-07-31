@@ -1,5 +1,5 @@
 {
-  "name": "@mandate/sdk",
+  "name": "@charter/sdk",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,6 +9,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@mandate/shared": "*"
+    "@charter/shared": "*"
   }
 }

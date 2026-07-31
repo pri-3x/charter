@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { Client } from "pg";
-import { loadEnv } from "@mandate/shared";
+import { loadEnv } from "@charter/shared";
 
 loadEnv();
 

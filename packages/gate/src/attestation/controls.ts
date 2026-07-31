@@ -45,7 +45,7 @@ export const CONTROL_MAPPING: ControlMappingRow[] = [
   {
     framework: "RBI",
     control_reference:
-      "RBI — delegation of financial authority and limit discipline (expectation that automated actors operate inside a documented, time-bound, monetarily capped mandate)",
+      "RBI — delegation of financial authority and limit discipline (expectation that automated actors operate inside a documented, time-bound, monetarily capped charter)",
     expectation:
       "An actor that can move money holds a documented authority with a named grantor, an expiry and a monetary ceiling, and cannot exceed it.",
     charter_evidence:

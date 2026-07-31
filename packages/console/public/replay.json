@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-07-31T08:52:39.788Z",
+  "recorded_at": "2026-07-31T09:16:07.355Z",
   "gate": {
     "policy_version": 1,
     "tenant": "acme-fintech"
@@ -12,8 +12,8 @@
       "verdict": "ALLOW",
       "rule_id": "R1-refund-small",
       "reason": null,
-      "entry_id": "01KYVP09N387XXA1KWJD25ANFW",
-      "latency_ms": 34
+      "entry_id": "01KYVQB88ANPYF1ZSWKYPKP6MX",
+      "latency_ms": 21
     },
     {
       "txt": "Email the customer",
@@ -22,8 +22,8 @@
       "verdict": "ALLOW",
       "rule_id": "R4-email-rate",
       "reason": null,
-      "entry_id": "01KYVP09NMVPEWQ8JT3S77M0MW",
-      "latency_ms": 7
+      "entry_id": "01KYVQB88V7HJ050E6P7H2Y697",
+      "latency_ms": 8
     },
     {
       "txt": "Refund a customer",
@@ -32,8 +32,8 @@
       "verdict": "ESCALATE",
       "rule_id": "R2-refund-large",
       "reason": null,
-      "entry_id": "01KYVP09NX311A7EY1QHZ22GVX",
-      "latency_ms": 13
+      "entry_id": "01KYVQB8938NF1XVTB44EZV8WC",
+      "latency_ms": 6
     },
     {
       "txt": "Refund a customer",
@@ -42,8 +42,8 @@
       "verdict": "ALLOW",
       "rule_id": "R1-refund-small",
       "reason": null,
-      "entry_id": "01KYVP09P8S9Q5H95XE3SDXCEK",
-      "latency_ms": 8
+      "entry_id": "01KYVQB898MWY2AVBYVBNXFAWP",
+      "latency_ms": 4
     },
     {
       "txt": "Pay out to a bank",
@@ -52,8 +52,8 @@
       "verdict": "DENY",
       "rule_id": "authority.forbidden_operation",
       "reason": "'initiate_payout' is a forbidden operation under authority auth_2026_0071",
-      "entry_id": "01KYVP09PGVY6FTTN0042XQF96",
-      "latency_ms": 4
+      "entry_id": "01KYVQB89CF4CGHE9GM89EWRHJ",
+      "latency_ms": 3
     },
     {
       "txt": "Look up an order",
@@ -62,8 +62,8 @@
       "verdict": "ALLOW",
       "rule_id": "R7-lookup-allow",
       "reason": null,
-      "entry_id": "01KYVP09PMVZ6E3ER0Z99VKBQT",
-      "latency_ms": 11
+      "entry_id": "01KYVQB89FFFK9DHKVPQ656ZC9",
+      "latency_ms": 3
     },
     {
       "txt": "Delete a record",
@@ -72,87 +72,66 @@
       "verdict": "DENY",
       "rule_id": "defaults.unknown_tool",
       "reason": "tool 'delete_record' is not in the agent's allowed_tools (out of scope)",
-      "entry_id": "01KYVP09Q0PB1F62A020BPVWA4",
-      "latency_ms": 7
+      "entry_id": "01KYVQB89JAZ9P4CA9AY6261Z7",
+      "latency_ms": 4
     }
   ],
   "counts": {
-    "ALLOW": 8,
-    "DENY": 4,
-    "ESCALATE": 2
+    "ALLOW": 4,
+    "DENY": 2,
+    "ESCALATE": 1
   },
-  "entry_count": 21,
+  "entry_count": 14,
   "chain": [
     {
-      "entry_hash": "sha256:1cae4471d4ee136fc9458a31acb047df703e3242ad889e137fb7ad41047792b6"
+      "entry_hash": "sha256:36e75031fef33480e65f8444f1aea1a056cdd17c5cc8eb0d5ed31623f5aa1ab2"
     },
     {
-      "entry_hash": "sha256:87fb711532b4a0433464a81c68d494b32f30a7d46011d130d375f8455f02a21b"
+      "entry_hash": "sha256:de9aca13c098731973fe0fbc2da2c900f463830c0e4d011924e3a56db5a2c873"
     },
     {
-      "entry_hash": "sha256:f6879741343a2ae60e6553bd0b19fb3a9c9a66412a0e6a6202adfbf677d24202"
+      "entry_hash": "sha256:c25b42e758afaeb96ccb74928aca4f80f670203f2db27905cf5571127981989f"
     },
     {
-      "entry_hash": "sha256:85f71fffae14875a8f56f2281575d5b4b6dd09eaed14a5678350b76c7ee2bb72"
+      "entry_hash": "sha256:978dc3bfbe1561aa9a6e665d85c8acc409371ca90aa6e591d5f430978e4b3df3"
     },
     {
-      "entry_hash": "sha256:8b99f436d06cbe9b1222c4f033839598c433a03b6527a042ea4e69b2fa9f36fe"
+      "entry_hash": "sha256:752f42c2cd49a031cfe6665a06d9d24ba0e1762a074997af08c3819c268359b0"
     },
     {
-      "entry_hash": "sha256:13de537a2d077e24e1c40210491c1df9e800d2f6771cb68a0af0ad951dee9f30"
+      "entry_hash": "sha256:864b83cdaa446f590c09685692ef3c72f5861d3a3f87f16ac2e628f2c96685e8"
     },
     {
-      "entry_hash": "sha256:cd49b1b3efd1d2b8903b32c043da0d5758e9628ea0b2efd908256e923868b4af"
+      "entry_hash": "sha256:cff500b0d33960ca1a3fc435bffe8c39553e26104696bdd77be3311fcf6c8d19"
     },
     {
-      "entry_hash": "sha256:884f9b5f9885387c8d67f2712370e9693c0131f174e580ac0f7980188c982cd8"
+      "entry_hash": "sha256:0b73f8b4a6148b69a9a986d9c4c613ef0b02f1725b46270e018559c099a960d5"
     },
     {
-      "entry_hash": "sha256:349cb978279651e5a4dcc30daade319d9a572bece71b704ac5b7e4a24e9fb43f"
+      "entry_hash": "sha256:39d978ab48a8356422ebf881e57c3372c5c7d2b3f2afae06596be84d956b9e85"
     },
     {
-      "entry_hash": "sha256:373124ada3bd5b7728ea4ef7d3887a2c6d625cff7eff7a788f407fb7b29efc9c"
+      "entry_hash": "sha256:4e18cfd2c17c216b185b7f9652b4d407add6c53f19f64d65431066df55a4692d"
     },
     {
-      "entry_hash": "sha256:eda2a3f8218ebadf66e8d8133a41de6b9435dd503981a82e37d77df1eb42fdf8"
+      "entry_hash": "sha256:cbc52cfc0093743a3e3a4fbee3ba371ed3d2b5f9128bb7e467a792a07f3493c9"
     },
     {
-      "entry_hash": "sha256:bb7953ead96f2a91a99702919f5c830f95432e89eaf72e37dd17165f73c0b1e4"
+      "entry_hash": "sha256:72d5d70e33fe30958a0c4ae02c1016c5cc8ecda533cc958678c7c840bbebe248"
     },
     {
-      "entry_hash": "sha256:e04c96ee8e73d846a109b98489baa467d8c84a95afdac731264f6b7e398db235"
+      "entry_hash": "sha256:e8c6a94ba4a38aadcd4ee25b1e052a64496902ee19265cdeb8c2a9f36cc01d07"
     },
     {
-      "entry_hash": "sha256:0e469d9a1088b9c3662cd3363bf5598966b49f34d3ebf64bae333cd54728027b"
-    },
-    {
-      "entry_hash": "sha256:d0e52036041c649ce18d068d9786578fd1aea060cef80bcca8650ef553145b00"
-    },
-    {
-      "entry_hash": "sha256:5d9bffdafda721e66ea349710809415efcee226a7c99cc3c3ff062f68a90dd0d"
-    },
-    {
-      "entry_hash": "sha256:9add070d2b35a98b9f388c317b072fc5b3f2095751ab9925883828e583fef4fb"
-    },
-    {
-      "entry_hash": "sha256:9c47ee6fed32b0d83440a4dadefc07d2adeada1b0f75852fc66d224151c6e6e7"
-    },
-    {
-      "entry_hash": "sha256:1a0d787f11ee98970455e7f9b786f75298db76c25c0684e72c7ef4064f7f7239"
-    },
-    {
-      "entry_hash": "sha256:09bf5998120aaccdca97c3730e6733bbfd990c8770e0bce0dc0595dd06ec8629"
-    },
-    {
-      "entry_hash": "sha256:44d67d161824d512b7f807f6f6e24c8ff924f5d5c30757a9cbb41a2119731d0d"
+      "entry_hash": "sha256:a789ff6bdf89aafe295ac08c66074840a96e3389644c0e1edb134403fa5ad845"
     }
   ],
   "checkpoints": [
     {
       "seq_from": "1",
-      "seq_to": "14",
-      "merkle_root": "faf03d18b40781353c0c040b576bebd9115d6298eeb7db799b7d3f7b6020aaa1",
-      "signature": "uCq+ZUPT8jZTIss4Me2AoBWPa10nZza+QOVRmqWmXuxiOZfxM6DEJsyTFJI470Q/MLEqjTliAekriLzjC2jsDQ=="
+      "seq_to": "7",
+      "merkle_root": "9c81834b7f5b9056fc6d5a1c38c635e69cfd9cc2dd90eb59e5ee01317b6b5a80",
+      "signature": "5SKShLrgSKKwYUny8CsyubsgBgMCuKtn4K1by0RmW0ENsRC9TGO44q5SnMDbotk90OAVThAOEza6dv7fBGYNBg=="
     }
   ],
   "note": "A recording of a real run against a live Charter gate. Replayed on the hosted page because a static site has no gate behind it. Nothing here is synthesised — run Charter locally to decide live."

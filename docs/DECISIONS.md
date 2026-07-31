@@ -13,7 +13,7 @@ escaping follow RFC 8785 exactly. Write property tests: serialize→parse→seri
 key order independence; unicode strings. This is the most correctness-critical code in the repo.
 
 D4. **Hash chain:** per-tenant. `prev_hash` of entry with seq N = `entry_hash` of seq N-1.
-Genesis: prev_hash = SHA-256 of the UTF-8 string `MANDATE_GENESIS:<tenant_id>`.
+Genesis: prev_hash = SHA-256 of the UTF-8 string `CHARTER_GENESIS:<tenant_id>`.
 `seq` is a per-tenant monotonic integer assigned inside the insert transaction
 (SELECT ... FOR UPDATE on a per-tenant counter row — simple and correct at POC scale).
 
@@ -27,7 +27,7 @@ record (v1 replaces with WORM storage / TSA).
 
 D6. **Verifier independence:** `packages/verifier` re-implements JCS, hashing, Merkle, and
 signature verification with zero imports from other workspace packages. It connects with a
-read-only DB role (`mandate_verifier`). Output: human-readable report + exit code 0/1; on
+read-only DB role (`charter_verifier`). Output: human-readable report + exit code 0/1; on
 failure it must print the exact seq of the first break.
 
 D7. **Policy evaluation:** first-match-wins over rules in document order, after (a) agent scope
@@ -102,12 +102,29 @@ agent under D15). A forbidden operation, an ungranted tool, a currency mismatch 
 ⇒ the policy is still evaluated and both views are recorded, because "the policy would have allowed
 this and the grant overruled it" is the most valuable line in the evidence.
 
-D19. **Charter is the name on the surface; the protocol constants do not move.** UI, docs, CLI
-output and README say Charter. The genesis string stays `MANDATE_GENESIS:<tenant>`, the DB roles stay
-`mandate_gate` / `mandate_verifier`, and the workspace scope stays `@mandate/*`. Renaming any of
-those would change every `entry_hash` already committed — the chain would have to be abandoned to
-win a cosmetic argument. (Note for the record: `usemandate.io` is a listed competitor, which is
-exactly why the product-facing name changed and the wire format did not.)
+D19. ~~**Charter is the name on the surface; the protocol constants do not move.**~~ **REVERSED by
+D19a.** The original decision kept the genesis string, the DB roles and the workspace scope on the
+old name, on the grounds that renaming them changes every `entry_hash` already committed and the
+chain would have to be abandoned to win a cosmetic argument. (Note for the record: `usemandate.io`
+is a listed competitor, which is exactly why the product-facing name changed and the wire format
+originally did not.)
+
+D19a. **The rename went all the way through: nothing is called by the old name any more.** Genesis is
+`CHARTER_GENESIS:<tenant>`, the roles are `charter_gate` / `charter_verifier`, the scope is
+`@charter/*`, the env vars are `CHARTER_*`, and the database is `charter`.
+
+Two reasons D19's cost/benefit inverted:
+1. It was never cosmetic. The old name is a **competitor's** name, and it was sitting in the env
+   vars, the DB roles, the package scope and every import line in the repo.
+2. The cost D19 was protecting against is real but was at its lowest ever. Changing the genesis
+   string changes the first link of every chain, so every `entry_hash` and every checkpoint
+   signature over it stops recomputing — the chain has to be rebuilt from zero. At POC stage, with
+   the only chain being a local dev one we already reset for every integration run, that is one
+   `npm run db:reset`. After the first real tenant it would have been close to impossible.
+
+So the abandonment D19 refused to pay for was paid deliberately, once, at the moment it was
+cheapest. Any chain written before this commit will fail verification at seq 1 by design — that is
+the expected outcome of moving genesis, not a regression.
 
 D20. **Reinstatement is an audited action, amending D15.** `POST /v1/agents/:id/reinstate` writes an
 AGENT_REINSTATED entry. D15 left un-suspend to manual SQL; a kill switch that can only be released

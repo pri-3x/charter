@@ -1,7 +1,7 @@
 /**
  * RFC 8785 JSON Canonicalization Scheme (JCS).
  *
- * This is the correctness-critical component of Mandate (DECISIONS D3): the entry_hash is a
+ * This is the correctness-critical component of Charter (DECISIONS D3): the entry_hash is a
  * SHA-256 over the JCS serialization of a ledger entry, and the independent verifier must derive
  * the exact same bytes from the stored payload. Any divergence breaks the hash chain.
  *

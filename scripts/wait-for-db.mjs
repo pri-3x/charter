@@ -23,7 +23,7 @@ function envValue(key) {
 }
 
 const URL_ =
-  envValue("POSTGRES_SUPERUSER_URL") ?? "postgres://postgres:postgres@localhost:5433/mandate";
+  envValue("POSTGRES_SUPERUSER_URL") ?? "postgres://postgres:postgres@localhost:5433/charter";
 const RETRIES = 40;
 
 async function queryable() {
@@ -42,7 +42,7 @@ async function queryable() {
 for (let i = 1; i <= RETRIES; i++) {
   let socketUp = false;
   try {
-    execSync("docker compose exec -T postgres pg_isready -U postgres -d mandate", {
+    execSync("docker compose exec -T postgres pg_isready -U postgres -d charter", {
       stdio: "ignore",
     });
     socketUp = true;

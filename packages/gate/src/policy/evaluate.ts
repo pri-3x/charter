@@ -1,4 +1,4 @@
-import type { Verdict, RuleTrace, RuleTraceItem } from "@mandate/shared";
+import type { Verdict, RuleTrace, RuleTraceItem } from "@charter/shared";
 import type { PolicyDoc, Rule, Matcher } from "./schema.js";
 
 /**

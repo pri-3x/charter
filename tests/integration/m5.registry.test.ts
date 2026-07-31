@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadEnv } from "@mandate/shared";
-import { buildApp, makePool } from "@mandate/gate";
-import type { Pool } from "@mandate/gate";
+import { loadEnv } from "@charter/shared";
+import { buildApp, makePool } from "@charter/gate";
+import type { Pool } from "@charter/gate";
 
 /**
  * Registry + Authority acceptance: S21–S24 (Charter §5.1/§5.2, DECISIONS D16–D18) plus the

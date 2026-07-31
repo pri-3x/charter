@@ -1,6 +1,6 @@
 /**
  * RFC 8785 (JCS) canonicalization — INDEPENDENT re-implementation for the verifier (DECISIONS D6).
- * Intentionally does NOT import @mandate/shared: the whole point of the verifier is to re-derive
+ * Intentionally does NOT import @charter/shared: the whole point of the verifier is to re-derive
  * the ledger's hashes with a separate implementation. Same spec, different code.
  *
  * RFC 8785 defines number/string serialization to equal ECMAScript ToString(Number) / JSON string

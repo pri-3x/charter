@@ -1,22 +1,22 @@
 services:
   postgres:
     image: postgres:16
-    container_name: mandate-postgres
+    container_name: charter-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mandate
+      POSTGRES_DB: charter
     ports:
       # Host 5433 to avoid clashing with a local (e.g. Homebrew) Postgres on 5432.
       - "5433:5432"
     volumes:
-      - mandate-pgdata:/var/lib/postgresql/data
+      - charter-pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d mandate"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d charter"]
       interval: 2s
       timeout: 3s
       retries: 30
 
 volumes:
-  mandate-pgdata:
+  charter-pgdata:

@@ -14,7 +14,7 @@ import {
   DemoConfigError,
   requireHealthyGate,
   style,
-} from "@mandate/demo-agent";
+} from "@charter/demo-agent";
 
 /**
  * S20 soak — `npm run soak`.

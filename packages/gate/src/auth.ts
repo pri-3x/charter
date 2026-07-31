@@ -1,5 +1,5 @@
-import { sha256Token } from "@mandate/shared";
-import type { MaxAutonomy, AgentStatus } from "@mandate/shared";
+import { sha256Token } from "@charter/shared";
+import type { MaxAutonomy, AgentStatus } from "@charter/shared";
 import type { Pool } from "./db.js";
 
 export interface AgentRow {

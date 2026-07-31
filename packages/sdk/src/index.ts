@@ -1,13 +1,13 @@
-export { MandateClient } from "./client.js";
+export { CharterClient } from "./client.js";
 export type {
-  MandateClientOptions,
+  CharterClientOptions,
   CheckAction,
   CheckResponse,
   HoldView,
   GuardOptions,
 } from "./client.js";
 export {
-  MandateError,
+  CharterError,
   PolicyDeniedError,
   HoldRejectedError,
   HoldExpiredError,

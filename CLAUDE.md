@@ -1,6 +1,6 @@
-# CLAUDE.md — Mandate
+# CLAUDE.md — Charter
 
-Mandate is a runtime authorization and audit layer for AI agents: a **policy gate** that sits
+Charter is a runtime authorization and audit layer for AI agents: a **policy gate** that sits
 between an agent and the tools it calls, fused with a **tamper-evident audit ledger**.
 Core invariant: **no verdict is ever returned before its ledger entry is durably committed.**
 
@@ -30,7 +30,7 @@ Read before coding, in this order:
 packages/
   shared/      # jcs canonicalization, hashing, types shared by gate+verifier? NO — see note
   gate/        # Fastify service: check endpoint, policy engine, ledger writer, checkpoint worker
-  sdk/         # TypeScript client: MandateClient, guard() wrapper
+  sdk/         # TypeScript client: CharterClient, guard() wrapper
   approvals/   # Telegram bot: context packets, approve/reject, hold resolution
   verifier/    # standalone CLI — MUST NOT import from gate/ or shared/ (see DECISIONS D6)
   demo-agent/  # customer-support agent with 4 tools, drives the test scenarios
@@ -53,7 +53,7 @@ independently on purpose — duplication there is a feature, not a bug.
 - Fail closed everywhere: DB down, policy missing, unknown tool, unknown agent, timeout → the
   action does NOT proceed. Never default-allow. If you find yourself writing a fallback that
   allows, stop.
-- Ledger tables are INSERT-only. The app connects with the `mandate_gate` role which has no
+- Ledger tables are INSERT-only. The app connects with the `charter_gate` role which has no
   UPDATE/DELETE on `ledger_entries`/`checkpoints` (see schema.sql). Never work around this.
 - The verdict + ledger insert happen in one Postgres transaction. Return the verdict only after
   COMMIT succeeds.

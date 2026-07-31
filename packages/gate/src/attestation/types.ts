@@ -4,7 +4,7 @@ import type {
   HoldStatus,
   MaxAutonomy,
   Verdict,
-} from "@mandate/shared";
+} from "@charter/shared";
 
 /**
  * The regulator-facing evidence pack (Charter §5.5).

@@ -1,6 +1,6 @@
 import { ulid } from "ulid";
 import pg from "pg";
-import { loadEnv, canonicalize, sha256Token, genesisPrevHash, jcsHashToken } from "@mandate/shared";
+import { loadEnv, canonicalize, sha256Token, genesisPrevHash, jcsHashToken } from "@charter/shared";
 
 /**
  * Bulk-generate a valid synthetic ledger chain for the verifier benchmark (MILESTONES M4:

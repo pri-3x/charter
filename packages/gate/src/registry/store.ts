@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { ulid } from "ulid";
-import { jcsHashToken, sha256Token } from "@mandate/shared";
-import type { AuthorityDoc, AuthorityStatus, CharterStatus, MaxAutonomy } from "@mandate/shared";
+import { jcsHashToken, sha256Token } from "@charter/shared";
+import type { AuthorityDoc, AuthorityStatus, CharterStatus, MaxAutonomy } from "@charter/shared";
 import type { Pool, PoolClient } from "../db.js";
 import { appendEntry } from "../ledger.js";
 

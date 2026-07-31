@@ -227,7 +227,7 @@ the daily budget → DENY `authority.budget_exceeded` consuming nothing.
   stored; authority as an immutable versioned document that may only tighten; budget breach as DENY
   rather than ESCALATE (an approver may not grant authority nobody gave them); standing failures
   short-circuit the policy, envelope failures do not.
-- **D19** — Charter is the product name; `MANDATE_GENESIS`, the DB roles and `@mandate/*` deliberately
+- **D19** — Charter is the product name; `CHARTER_GENESIS`, the DB roles and `@charter/*` deliberately
   unchanged, because renaming them invalidates every committed hash.
 - **D20 amends D15** — reinstatement is an audited endpoint. A kill switch releasable only by hand-
   editing rows is un-demonstrable and pushes operators toward direct DB access.
@@ -269,13 +269,13 @@ the daily budget → DENY `authority.budget_exceeded` consuming nothing.
   JCS of `{tenant_id, seq_from, seq_to, merkle_root, created_at}`; **Ed25519** signature (base64).
   Runs on a 5-min `setInterval` in the gate and appends each signed checkpoint as a JSON line to
   `anchors.log` (out-of-band record). Disabled with a warning if no signing key is present.
-- **Keygen** (`scripts/keygen.ts`): Ed25519 PEM pair (`MANDATE_SIGNING_KEY_PATH` private /
-  `MANDATE_SIGNING_PUB_PATH` public — the latter is all the verifier needs).
+- **Keygen** (`scripts/keygen.ts`): Ed25519 PEM pair (`CHARTER_SIGNING_KEY_PATH` private /
+  `CHARTER_SIGNING_PUB_PATH` public — the latter is all the verifier needs).
 - **Endpoints**: `GET /v1/ledger/checkpoints` and `GET /v1/ledger/proof/:entry_id` (Merkle path +
   root + signature — a third-party inclusion proof; 404 if not yet checkpointed).
 - **Independent verifier** (`packages/verifier`, D6): its **own** JCS, hashing, Merkle, and Ed25519
   verification — **zero imports from any workspace package** (verified). Connects with the read-only
-  `mandate_verifier` role. Streams entries in seq batches; recomputes each entry_hash, checks chain
+  `charter_verifier` role. Streams entries in seq batches; recomputes each entry_hash, checks chain
   continuity + column↔payload consistency, rebuilds + signature-checks every checkpoint, and detects
   truncation against `anchors.log`. Prints a report with the exact first-break seq/checkpoint; exit 0/1.
 - **`npm run tamper-demo`**: scripted narrative — seal a checkpoint, then (T1) a naïve payload edit
@@ -301,7 +301,7 @@ the daily budget → DENY `authority.budget_exceeded` consuming nothing.
 - Verifier checks **signature before root** so localizations match the scenarios: T5 (root column
   altered, signature over the old root) surfaces as `checkpoint_signature_invalid`; T3/T4 (entries
   rewritten, checkpoint row untouched) surface as `checkpoint_root_mismatch`.
-- Signing key config uses the **path** form from `env.example` (`MANDATE_SIGNING_KEY_PATH`) rather
+- Signing key config uses the **path** form from `env.example` (`CHARTER_SIGNING_KEY_PATH`) rather
   than an inline-PEM `MANDATE_SIGNING_KEY` env var (D5 mentioned the latter); the keygen script writes
   the PEM files. Functionally equivalent; noted for fidelity.
 
@@ -323,7 +323,7 @@ the daily budget → DENY `authority.budget_exceeded` consuming nothing.
 - **Kill switch** (`suspend.ts`, D15) — `POST /v1/agents/:id/suspend` sets status SUSPENDED + writes
   an **AGENT_SUSPENDED** entry; the check handler denies a suspended agent (`agent_suspended`) before
   the policy is consulted.
-- **SDK** (`packages/sdk`) — `MandateClient` (`check`, `reportResult`, `getHold`) and `guard()`:
+- **SDK** (`packages/sdk`) — `CharterClient` (`check`, `reportResult`, `getHold`) and `guard()`:
   ALLOW → run fn + report OUTCOME; DENY → `PolicyDeniedError`; ESCALATE → poll the hold until
   APPROVED (run fn) / REJECTED (`HoldRejectedError`) / EXPIRED (`HoldExpiredError`). Poll interval
   configurable; fail-closed on 5xx (fn never runs).
@@ -478,10 +478,10 @@ satisfy the authoritative TEST_PLAN. All are the fail-closed reading and none re
 **Monorepo scaffold**
 - npm workspaces (`packages/{shared,gate,sdk,approvals,verifier,demo-agent}`); `sdk`/`approvals`/
   `verifier`/`demo-agent` are placeholder manifests (built in later milestones).
-- TypeScript strict via a single `tsconfig.json` with path aliases (`@mandate/shared`, `@mandate/gate`)
+- TypeScript strict via a single `tsconfig.json` with path aliases (`@charter/shared`, `@charter/gate`)
   — everything runs on `tsx`/`vitest`, no build step. `npx tsc --noEmit` → **0 errors**.
-- `docker-compose.yml` → Postgres 16; `db/init/00_roles.sql` creates the `mandate_gate` (app) and
-  `mandate_verifier` (read-only) roles at container init.
+- `docker-compose.yml` → Postgres 16; `db/init/00_roles.sql` creates the `charter_gate` (app) and
+  `charter_verifier` (read-only) roles at container init.
 - Migration runner `scripts/migrate.ts` (tracks applied files in `_migrations`); `0001_init.sql` is a
   verbatim copy of `db/schema.sql`.
 - Seed `scripts/seed.ts`: tenant `acme-fintech`, agent `support-agent` (API key printed once + written
@@ -494,7 +494,7 @@ satisfy the authoritative TEST_PLAN. All are the fail-closed reading and none re
   ECMAScript `ToString`/JSON string production) and implements the two things JCS actually adds:
   deterministic UTF-16 key ordering and rejection of non-finite numbers.
 - `computeEntryHash` (D3: SHA-256 over JCS with `entry_hash` absent), `genesisPrevHash`
-  (D4: `MANDATE_GENESIS:<tenant>`), `jcsHashToken` (params_hash, D12).
+  (D4: `CHARTER_GENESIS:<tenant>`), `jcsHashToken` (params_hash, D12).
 - **Property tests** (`jcs.test.ts`, 2500 random values): idempotence, key-order independence,
   round-trip; plus RFC 8785 number/string known vectors and unicode.
 
@@ -515,8 +515,8 @@ satisfy the authoritative TEST_PLAN. All are the fail-closed reading and none re
 
 ### Verified invariants (beyond the scenarios)
 - Chain linkage `prev_hash[n] == entry_hash[n-1]` holds across all seeded entries.
-- Append-only: `mandate_gate` is **grant-denied** UPDATE/DELETE on `ledger_entries`; the trigger blocks
-  even the superuser; `mandate_verifier` is grant-denied INSERT (read-only).
+- Append-only: `charter_gate` is **grant-denied** UPDATE/DELETE on `ledger_entries`; the trigger blocks
+  even the superuser; `charter_verifier` is grant-denied INSERT (read-only).
 - Live server smoke test (ALLOW / DENY / replay header / 401 / admin ledger) all correct.
 
 ### Scenario results

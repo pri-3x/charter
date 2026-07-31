@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadEnv } from "@mandate/shared";
-import { buildApp, makePool, expireHolds } from "@mandate/gate";
-import type { Pool } from "@mandate/gate";
-import { MandateClient, HoldRejectedError, HoldExpiredError } from "@mandate/sdk";
+import { loadEnv } from "@charter/shared";
+import { buildApp, makePool, expireHolds } from "@charter/gate";
+import type { Pool } from "@charter/gate";
+import { CharterClient, HoldRejectedError, HoldExpiredError } from "@charter/sdk";
 
 /**
  * M3 acceptance scenarios: S5–S8 (approvals via SDK guard()) and S15 (kill switch). Drives the real
@@ -21,7 +21,7 @@ const seed: { tenant: string; agentId: string; apiKey: string; adminKey: string 
 
 let pool: Pool;
 let app: FastifyInstance;
-let client: MandateClient;
+let client: CharterClient;
 const adminAuth = { authorization: `Bearer ${seed.adminKey}` };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -66,7 +66,7 @@ beforeAll(async () => {
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();
   const port = typeof addr === "object" && addr ? addr.port : 0;
-  client = new MandateClient({
+  client = new CharterClient({
     baseUrl: `http://127.0.0.1:${port}`,
     apiKey: seed.apiKey,
     agentId: seed.agentId,

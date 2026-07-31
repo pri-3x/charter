@@ -1,7 +1,7 @@
 import { readFileSync, appendFileSync } from "node:fs";
 import { createPrivateKey, sign as cryptoSign } from "node:crypto";
 import { ulid } from "ulid";
-import { canonicalize } from "@mandate/shared";
+import { canonicalize } from "@charter/shared";
 import type { Pool } from "./db.js";
 import { leafFromEntryHash, merkleRootHex } from "./merkle.js";
 

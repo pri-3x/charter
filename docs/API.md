@@ -1,7 +1,7 @@
 # API.md — HTTP contract (all JSON; auth: `Authorization: Bearer <agent-or-admin-key>`)
 
 Key types: agent keys (scoped to one agent) for /actions and /holds reads; an admin key
-(env `MANDATE_ADMIN_KEY`) for /policies, /ledger, /agents. 401 on bad key. 400 on zod failure
+(env `CHARTER_ADMIN_KEY`) for /policies, /ledger, /agents. 401 on bad key. 400 on zod failure
 with `{error, details}`. DENY is 200, not an error (DECISIONS D14).
 
 ## POST /v1/actions/check   (agent key; header `Idempotency-Key` required)

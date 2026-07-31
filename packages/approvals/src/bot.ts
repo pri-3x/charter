@@ -1,6 +1,6 @@
 import { Bot, InlineKeyboard } from "grammy";
 import pg from "pg";
-import { loadEnv } from "@mandate/shared";
+import { loadEnv } from "@charter/shared";
 
 /**
  * Telegram approvals bot (SPEC §6, M3). Long-polls Telegram; separately polls the DB every 2s for
@@ -61,8 +61,8 @@ async function main(): Promise<void> {
   }
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) throw new Error("DATABASE_URL is required");
-  const adminKey = process.env.MANDATE_ADMIN_KEY;
-  if (!adminKey) throw new Error("MANDATE_ADMIN_KEY is required");
+  const adminKey = process.env.CHARTER_ADMIN_KEY;
+  if (!adminKey) throw new Error("CHARTER_ADMIN_KEY is required");
   const gateBase = process.env.GATE_BASE_URL ?? `http://localhost:${process.env.PORT ?? 8080}`;
 
   const pool = new Pool({ connectionString: dbUrl });

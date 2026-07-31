@@ -1,9 +1,9 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import pg from "pg";
-import { loadEnv, canonicalize, sha256Token, jcsHashToken } from "@mandate/shared";
-import { makePool, appendEntry, loadSigner, createPendingCheckpoint } from "@mandate/gate";
-import { verify } from "@mandate/verifier";
+import { loadEnv, canonicalize, sha256Token, jcsHashToken } from "@charter/shared";
+import { makePool, appendEntry, loadSigner, createPendingCheckpoint } from "@charter/gate";
+import { verify } from "@charter/verifier";
 
 /**
  * Scripted tamper demo (MILESTONES M4 task 4). Run after `npm run db:reset && npm run keygen`.
@@ -33,7 +33,7 @@ interface VerifyReport {
 }
 
 async function runVerifier(): Promise<VerifyReport> {
-  const pubPath = process.env.MANDATE_SIGNING_PUB_PATH ?? "./keys/signing.pub.pem";
+  const pubPath = process.env.CHARTER_SIGNING_PUB_PATH ?? "./keys/signing.pub.pem";
   const publicKeyPem = existsSync(pubPath) ? readFileSync(pubPath, "utf8") : undefined;
   const anchorsPath = process.env.ANCHORS_LOG_PATH ?? "./anchors.log";
   const anchors = existsSync(anchorsPath)
@@ -81,7 +81,7 @@ async function main(): Promise<void> {
   const su = new pg.Client({ connectionString: process.env.POSTGRES_SUPERUSER_URL });
   await su.connect();
   const gatePool = makePool(process.env.DATABASE_URL!);
-  const signer = loadSigner(process.env.MANDATE_SIGNING_KEY_PATH ?? "./keys/signing.pem");
+  const signer = loadSigner(process.env.CHARTER_SIGNING_KEY_PATH ?? "./keys/signing.pem");
 
   try {
     hdr("① Building a small ledger and sealing a signed checkpoint");

@@ -68,5 +68,5 @@ ALTER TABLE ledger_entries ADD CONSTRAINT ledger_entries_kind_check
                   'AGENT_REGISTERED','AGENT_REINSTATED','AUTHORITY_GRANTED','AUTHORITY_REVOKED'));
 
 -- ===== grants (new table is not covered by the 0001 grants) =====
-GRANT SELECT, INSERT, UPDATE ON authorities TO mandate_gate;
-GRANT SELECT ON authorities TO mandate_verifier;
+GRANT SELECT, INSERT, UPDATE ON authorities TO charter_gate;
+GRANT SELECT ON authorities TO charter_verifier;

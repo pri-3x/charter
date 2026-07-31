@@ -36,7 +36,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const pubPath = arg("--pubkey") ?? process.env.MANDATE_SIGNING_PUB_PATH;
+  const pubPath = arg("--pubkey") ?? process.env.CHARTER_SIGNING_PUB_PATH;
   const publicKeyPem = pubPath && existsSync(pubPath) ? readFileSync(pubPath, "utf8") : undefined;
 
   const anchorsPath = arg("--anchors");
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
   const report = await verify({ connectionString, tenant, ...(fromSeq ? { fromSeq } : {}), ...(publicKeyPem ? { publicKeyPem } : {}), ...(anchors ? { anchors } : {}) });
 
   console.log("");
-  console.log(`  mandate-verify · tenant ${report.tenant}`);
+  console.log(`  charter-verify · tenant ${report.tenant}`);
   console.log(`  entries checked:      ${report.entriesChecked}`);
   console.log(`  checkpoints verified: ${report.checkpointsChecked}`);
   for (const w of report.warnings) console.log(`  ⚠ ${w}`);

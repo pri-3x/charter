@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client } from "pg";
-import { loadEnv, sha256Token } from "@mandate/shared";
+import { loadEnv, sha256Token } from "@charter/shared";
 import { ulid } from "ulid";
 import {
   makePool,
@@ -11,7 +11,7 @@ import {
   activateDraft,
   grantAuthority,
   appendEntry,
-} from "@mandate/gate";
+} from "@charter/gate";
 
 loadEnv();
 
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     [DEMO_AGENT_ID]: process.env.SEED_DEMO_AGENT_KEY ?? `chr_${randomBytes(24).toString("base64url")}`,
     [EXPIRED_AGENT_ID]: `chr_${randomBytes(24).toString("base64url")}`,
   };
-  const adminKey = process.env.MANDATE_ADMIN_KEY ?? "change-me-admin-key";
+  const adminKey = process.env.CHARTER_ADMIN_KEY ?? "change-me-admin-key";
 
   // ---- tenant + principals + seq row (must exist before any ledger entry) ---------------------
   const client = new Client({ connectionString: url });

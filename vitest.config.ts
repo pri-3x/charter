@@ -4,10 +4,10 @@ import { resolve } from "node:path";
 export default defineConfig({
   resolve: {
     alias: {
-      "@mandate/shared": resolve(__dirname, "packages/shared/src/index.ts"),
-      "@mandate/gate": resolve(__dirname, "packages/gate/src/index.ts"),
-      "@mandate/sdk": resolve(__dirname, "packages/sdk/src/index.ts"),
-      "@mandate/verifier": resolve(__dirname, "packages/verifier/src/verify.ts"),
+      "@charter/shared": resolve(__dirname, "packages/shared/src/index.ts"),
+      "@charter/gate": resolve(__dirname, "packages/gate/src/index.ts"),
+      "@charter/sdk": resolve(__dirname, "packages/sdk/src/index.ts"),
+      "@charter/verifier": resolve(__dirname, "packages/verifier/src/verify.ts"),
     },
   },
   test: {

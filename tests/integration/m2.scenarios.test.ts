@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadEnv, jcsHashToken } from "@mandate/shared";
-import { buildApp, makePool } from "@mandate/gate";
-import type { Pool } from "@mandate/gate";
+import { loadEnv, jcsHashToken } from "@charter/shared";
+import { buildApp, makePool } from "@charter/gate";
+import type { Pool } from "@charter/gate";
 
 /**
  * M2 acceptance scenarios: S1–S4, S9–S14, S16, S17 (MILESTONES M2), plus S18/S19 (fail-closed +
@@ -269,7 +269,7 @@ describe("S19 — malformed body", () => {
 
 describe("S18 — DB down fail-closed", () => {
   it("healthz 503 + check 5xx when Postgres unreachable", async () => {
-    const deadPool = makePool("postgres://mandate_gate:gatepass@127.0.0.1:59999/mandate");
+    const deadPool = makePool("postgres://charter_gate:gatepass@127.0.0.1:59999/charter");
     const deadApp = await buildApp({ pool: deadPool, adminKey: seed.adminKey }, { logger: false });
     await deadApp.ready();
     try {

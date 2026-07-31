@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { computeEntryHash, genesisPrevHash, jcsHashToken } from "@mandate/shared";
-import type { Verdict } from "@mandate/shared";
+import { computeEntryHash, genesisPrevHash, jcsHashToken } from "@charter/shared";
+import type { Verdict } from "@charter/shared";
 import type { Pool } from "../db.js";
 import { listAuthorities, listRegistry } from "../registry/store.js";
 import type { AuthorityRow, RegistryCard } from "../registry/store.js";

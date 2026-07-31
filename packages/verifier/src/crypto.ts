@@ -11,7 +11,7 @@ export function sha256Bytes(data: Buffer): Buffer {
 }
 
 export function genesisPrevHash(tenantId: string): string {
-  return "sha256:" + sha256Hex(`MANDATE_GENESIS:${tenantId}`);
+  return "sha256:" + sha256Hex(`CHARTER_GENESIS:${tenantId}`);
 }
 
 /** entry_hash = "sha256:" + SHA-256(JCS(payload without entry_hash)). */

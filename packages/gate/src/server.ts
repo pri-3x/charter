@@ -43,7 +43,7 @@ async function main(): Promise<void> {
     checkpointer.unref();
     logger.info({ intervalMs: config.checkpointIntervalMs }, "checkpoint worker enabled");
   } else {
-    logger.warn("checkpoint worker disabled: no MANDATE_SIGNING_KEY_PATH (run `npm run keygen`)");
+    logger.warn("checkpoint worker disabled: no CHARTER_SIGNING_KEY_PATH (run `npm run keygen`)");
   }
 
   const shutdown = async (signal: string): Promise<void> => {

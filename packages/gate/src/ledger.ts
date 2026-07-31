@@ -1,5 +1,5 @@
-import { computeEntryHash, genesisPrevHash } from "@mandate/shared";
-import type { EntryKind } from "@mandate/shared";
+import { computeEntryHash, genesisPrevHash } from "@charter/shared";
+import type { EntryKind } from "@charter/shared";
 import type { PoolClient } from "./db.js";
 
 export interface AppendInput {

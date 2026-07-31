@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { jcsHashToken } from "@mandate/shared";
-import type { Verdict } from "@mandate/shared";
-import { MandateError, PolicyDeniedError, HoldRejectedError, HoldExpiredError } from "./errors.js";
+import { jcsHashToken } from "@charter/shared";
+import type { Verdict } from "@charter/shared";
+import { CharterError, PolicyDeniedError, HoldRejectedError, HoldExpiredError } from "./errors.js";
 
-export interface MandateClientOptions {
+export interface CharterClientOptions {
   baseUrl: string;
   apiKey: string;
   agentId: string;
@@ -45,11 +45,11 @@ export interface GuardOptions {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-export class MandateClient {
+export class CharterClient {
   private readonly pollIntervalMs: number;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(private readonly opts: MandateClientOptions) {
+  constructor(private readonly opts: CharterClientOptions) {
     this.pollIntervalMs = opts.pollIntervalMs ?? 2000;
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
@@ -58,7 +58,7 @@ export class MandateClient {
     return this.opts.baseUrl.replace(/\/$/, "") + path;
   }
 
-  /** Low-level check. Throws MandateError on 5xx / malformed (fail closed — caller must not run). */
+  /** Low-level check. Throws CharterError on 5xx / malformed (fail closed — caller must not run). */
   async check(action: CheckAction, idempotencyKey?: string): Promise<CheckResponse> {
     const res = await this.fetchImpl(this.url("/v1/actions/check"), {
       method: "POST",
@@ -76,7 +76,7 @@ export class MandateClient {
       } catch {
         /* ignore */
       }
-      throw new MandateError(`check failed with HTTP ${res.status}`, res.status, body);
+      throw new CharterError(`check failed with HTTP ${res.status}`, res.status, body);
     }
     return (await res.json()) as CheckResponse;
   }
@@ -95,7 +95,7 @@ export class MandateClient {
       body: JSON.stringify(outcome),
     });
     if (res.status !== 200) {
-      throw new MandateError(`reportResult failed with HTTP ${res.status}`, res.status);
+      throw new CharterError(`reportResult failed with HTTP ${res.status}`, res.status);
     }
     return (await res.json()) as { outcome_entry_id: string };
   }
@@ -105,7 +105,7 @@ export class MandateClient {
       headers: { Authorization: `Bearer ${this.opts.apiKey}` },
     });
     if (res.status !== 200) {
-      throw new MandateError(`getHold failed with HTTP ${res.status}`, res.status);
+      throw new CharterError(`getHold failed with HTTP ${res.status}`, res.status);
     }
     return (await res.json()) as HoldView;
   }

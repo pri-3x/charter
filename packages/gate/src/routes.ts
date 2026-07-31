@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { ulid } from "ulid";
-import { jcsHashToken } from "@mandate/shared";
+import { jcsHashToken } from "@charter/shared";
 import type { Pool } from "./db.js";
 import { dbReachable } from "./db.js";
 import { resolveAuth } from "./auth.js";

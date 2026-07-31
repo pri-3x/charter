@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { loadEnv } from "@mandate/shared";
+import { loadEnv } from "@charter/shared";
 
 /**
  * Demo-agent configuration. Everything is read once, up front, and validated with zod — a missing

@@ -1,4 +1,4 @@
-import type { AuthorityTrace } from "@mandate/shared";
+import type { AuthorityTrace } from "@charter/shared";
 import type { PoolClient } from "../db.js";
 import type { Action, ConsumeItem } from "../policy/evaluate.js";
 import type { CharterContext } from "./store.js";

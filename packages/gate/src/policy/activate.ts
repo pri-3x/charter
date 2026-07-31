@@ -1,5 +1,5 @@
 import { ulid } from "ulid";
-import { sha256Token } from "@mandate/shared";
+import { sha256Token } from "@charter/shared";
 import type { Pool } from "../db.js";
 import { appendEntry } from "../ledger.js";
 import { parsePolicyYaml } from "./schema.js";
