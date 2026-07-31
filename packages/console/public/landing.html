@@ -980,12 +980,12 @@
         <div class="sec-head">
           <p class="eyebrow"><span class="n">03</span> The decision</p>
           <h2>Watch it decide, live.</h2>
-          <!-- Worded to stay true whether or not a gate is behind the page: hosted with nothing
-               behind it, this section stays empty rather than showing invented rows. -->
+          <!-- True in both states. With a gate behind the page these are live calls; hosted, they
+               are a replay of a real recorded run, and the header says which one you are looking at. -->
           <p class="lede">
-            Nothing here is a mock-up. Every row is a real HTTP call to a running gate, and each one
-            leaves a permanent entry in the ledger — so this fills in only when Charter is actually
-            running behind the page.
+            Nothing here is invented. Every row is a real verdict from a real gate — with a rule id
+            and a ledger entry you can go and check. Run Charter yourself and this decides live; on
+            this hosted page it replays a recorded run, and says so.
           </p>
         </div>
 
@@ -1061,16 +1061,20 @@
     </section>
 
     <!-- ======================================= 05 THE ARTEFACTS ===================================== -->
-    <!-- Each panel is drawn from live data, then sampled down onto a character ramp. Nothing here is
+    <!-- Each panel is drawn from real ledger data — live when a gate is reachable, otherwise the
+         recorded chain and checkpoint — then sampled down onto a character ramp. Nothing here is
          an image file: the shapes are the real chain, the real checkpoint, the real verdict counts. -->
     <section class="sec band" id="artefacts">
       <div class="wrap">
         <div class="sec-head">
           <p class="eyebrow"><span class="n">05</span> The artefacts</p>
           <h2>What Charter actually hands you.</h2>
+          <!-- Same rule as section 03: true whether the ledger is live or recorded. Each caption
+               says which, so the shapes are never passed off as something they are not. -->
           <p class="lede">
-            Four things exist after an agent acts, and all four are on this machine right now. These
-            are drawn from the live ledger — reload and the shapes change with it.
+            Four things exist after an agent acts. These are not illustrations — every shape below is
+            sampled from real hashes, a real Merkle root and a real signature. Run Charter yourself
+            and they redraw from your own ledger on every reload.
           </p>
         </div>
       </div>
@@ -2095,6 +2099,34 @@
       let seen = 0;
       let onscreen = true;
 
+      // A recording of a real run, loaded only when there is no gate to ask. Written by
+      // `node scripts/record-replay.mjs` against a live gate: real verdicts, real rule ids, real
+      // ledger entry ids, real latencies. It exists so a hosted copy shows what Charter does instead
+      // of an empty frame — and every surface that uses it says "recorded", because a replay that
+      // presents itself as live would be exactly the kind of claim this page is arguing against.
+      let replay = null;
+      async function loadReplay() {
+        try {
+          const r = await fetch("replay.json", { cache: "no-store" });
+          if (!r.ok) return null;
+          const d = await r.json();
+          return Array.isArray(d.rows) && d.rows.length ? d : null;
+        } catch {
+          return null;
+        }
+      }
+      const recordedOn = (iso) => {
+        try {
+          return new Date(iso).toLocaleDateString(undefined, {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+        } catch {
+          return "";
+        }
+      };
+
       const clock = () => new Date().toTimeString().slice(0, 8) + "." + String(Date.now() % 1000).padStart(3, "0");
       const money = (r) => (r > 0 ? "₹" + r.toLocaleString("en-IN") : "—");
 
@@ -2110,7 +2142,14 @@
         }
       }
 
-      async function decide(c) {
+      async function decide(c, i) {
+        // Replay mode: the recorded row already *is* the decision. Sleep for the latency the gate
+        // actually took at record time rather than a made-up delay.
+        if (replay) {
+          const rec = replay.rows[i % replay.rows.length];
+          await wait(RM ? 0 : Math.min(400, 90 + (rec.latency_ms || 10)));
+          return rec;
+        }
         const params = { currency: "INR" };
         if (c.rupees > 0) params.amount = c.rupees * 100;
         if (c.tool === "lookup_order") params.order_id = "ORD-4471";
@@ -2150,8 +2189,8 @@
         return el;
       }
 
-      async function pass(c) {
-        const d = await decide(c);
+      async function pass(c, i) {
+        const d = await decide(c, i);
         const why = PLAIN[d.rule_id] || d.rule_id || "";
 
         // 1 · the request lands in the ledger, verdict pending on screen
@@ -2181,21 +2220,44 @@
         await wait(RM ? 0 : 760);
       }
 
+      /**
+       * Work out which of the three states we are in and label the header accordingly. Kept separate
+       * from loop() on purpose: the label should resolve as soon as the page loads, but the rows must
+       * not start animating until the section is actually on screen. Folding the two together meant
+       * the off-screen backstop rendered exactly one row and then stopped on `onscreen`.
+       */
+      async function resolveMode() {
+        if (creds === null) creds = await loadCreds();
+        if (!creds && replay === null) replay = (await loadReplay()) ?? false;
+
+        if (creds) {
+          lDot.classList.remove("off", "rec");
+          lHead.textContent = "Live · real calls to the gate on this machine";
+        } else if (replay) {
+          lDot.classList.remove("off");
+          lDot.classList.add("rec");
+          lHead.textContent =
+            "Recorded run · " + recordedOn(replay.recorded_at) + " · run Charter locally to decide live";
+        } else {
+          lDot.classList.add("off");
+          lHead.textContent = "Static copy — run Charter locally and this decides for real";
+        }
+        return !!creds || !!replay;
+      }
+
       async function loop() {
         if (running) return;
         running = true;
-        if (creds === null) creds = await loadCreds();
-        if (!creds) {
-          lHead.textContent = "Static copy — run Charter locally and this decides for real";
-          lDot.classList.add("off");
+        const usable = await resolveMode();
+        if (!usable) {
           running = false;
           return;
         }
-        lDot.classList.remove("off");
-        lHead.textContent = "Live · real calls to the gate on this machine";
+
+        const seq = replay && !creds ? replay.rows : CASES;
         while (onscreen && seen < 12) {
           try {
-            await pass(CASES[seen % CASES.length]);
+            await pass(seq[seen % seq.length], seen);
           } catch {
             creds = await loadCreds(); // usually a key rotated by a db reset
             if (!creds) break;
@@ -2204,7 +2266,8 @@
         }
         running = false;
         if (seen >= 12) {
-          lHead.textContent = `That is the whole product — ${tally.ALLOW} allowed, ${tally.ESCALATE} to a person, ${tally.DENY} blocked`;
+          const tail = replay && !creds ? " (recorded)" : "";
+          lHead.textContent = `That is the whole product — ${tally.ALLOW} allowed, ${tally.ESCALATE} to a person, ${tally.DENY} blocked${tail}`;
           const again = document.getElementById("again");
           again.innerHTML = `<button id="againBtn" style="height:26px;font-size:10px">Run it again</button>`;
           document.getElementById("againBtn").addEventListener("click", () => {
@@ -2225,19 +2288,24 @@
         { threshold: 0.2 },
       ).observe(document.getElementById("flow"));
 
-      // Backstop for the no-gate case. A backgrounded tab never delivers intersection callbacks, so
-      // without this the header sits on "Connecting to the gate" forever — which reads as a hang
-      // rather than as the honest "there is nothing behind this page" that loop() already handles.
-      setTimeout(() => {
-        if (seen === 0 && !running) {
-          loadCreds().then((c) => {
-            if (!c) {
-              lHead.textContent = "Static copy — run Charter locally and this decides for real";
-              lDot.classList.add("off");
+      // Resolve the label immediately, without waiting to be scrolled into view: otherwise the header
+      // reads "Connecting to the gate" until the visitor gets there, and on a hosted page a hang is
+      // indistinguishable from a wait.
+      resolveMode().then((usable) => {
+        // Replaying a recording writes nothing, so it is safe to start it even if the intersection
+        // observer never reports (a backgrounded tab delivers no callbacks) — better a section that
+        // has already played than an empty frame. The LIVE path deliberately gets no such backstop:
+        // every row there is a real call that writes a real ledger entry, so it stays gated on
+        // someone actually looking at it.
+        if (usable && !creds && replay) {
+          setTimeout(() => {
+            if (seen === 0 && !running) {
+              onscreen = true;
+              loop();
             }
-          });
+          }, 2500);
         }
-      }, 4000);
+      });
 
       /* ------------------------------------------------------- the compliance report (the real one) */
       document.getElementById("reportBtn")?.addEventListener("click", async () => {
@@ -2495,36 +2563,49 @@
 
         async function render() {
           const c = await loadCreds();
-          if (!c?.admin) {
-            unavailable("nothing behind this page — run Charter locally to draw it");
-            return;
-          }
-          const auth = { Authorization: "Bearer " + c.admin };
-          const q = "tenant=acme-fintech";
           let entries = [];
           let checkpoints = [];
-          try {
-            const [le, cs] = await Promise.all([
-              fetch("/v1/ledger?" + q + "&limit=400", { headers: auth }).then((r) => r.json()),
-              fetch("/v1/ledger/checkpoints?" + q, { headers: auth }).then((r) => r.json()),
-            ]);
-            entries = le.entries || [];
-            checkpoints = cs.checkpoints || [];
-          } catch {
-            unavailable("could not read the ledger");
-            return;
+          let counts = { ALLOW: 0, DENY: 0, ESCALATE: 0 };
+          let recorded = false;
+
+          if (c?.admin) {
+            const auth = { Authorization: "Bearer " + c.admin };
+            const q = "tenant=acme-fintech";
+            try {
+              const [le, cs] = await Promise.all([
+                fetch("/v1/ledger?" + q + "&limit=400", { headers: auth }).then((r) => r.json()),
+                fetch("/v1/ledger/checkpoints?" + q, { headers: auth }).then((r) => r.json()),
+              ]);
+              entries = le.entries || [];
+              checkpoints = cs.checkpoints || [];
+            } catch {
+              unavailable("could not read the ledger");
+              return;
+            }
+            for (const e of entries) if (e.verdict && counts[e.verdict] !== undefined) counts[e.verdict]++;
+          } else {
+            // Hosted with no gate: draw the same shapes from the recorded chain and checkpoint. The
+            // hashes and the Merkle root are the real ones, so the silhouettes are real silhouettes.
+            const rp = await loadReplay();
+            if (!rp) {
+              unavailable("nothing behind this page — run Charter locally to draw it");
+              return;
+            }
+            recorded = true;
+            entries = rp.chain || [];
+            checkpoints = rp.checkpoints || [];
+            counts = rp.counts || counts;
           }
 
-          const counts = { ALLOW: 0, DENY: 0, ESCALATE: 0 };
-          for (const e of entries) if (e.verdict && counts[e.verdict] !== undefined) counts[e.verdict]++;
           const decided = counts.ALLOW + counts.DENY + counts.ESCALATE;
+          const mark = recorded ? " · recorded" : "";
           const cp = checkpoints[checkpoints.length - 1];
 
           fill(
             "chain",
             (g, W, H) => drawChain(g, W, H, entries),
             entries.length
-              ? entries.length + " entries · each block is one verdict, drawn from its own hash"
+              ? entries.length + " entries · each block is one verdict, drawn from its own hash" + mark
               : "the ledger is empty",
           );
 
@@ -2532,9 +2613,9 @@
             fill(
               "merkle",
               (g, W, H) => drawMerkle(g, W, H, cp),
-              "seq " + cp.seq_from + "–" + cp.seq_to + " · root " + String(cp.merkle_root).slice(0, 12) + "…",
+              "seq " + cp.seq_from + "–" + cp.seq_to + " · root " + String(cp.merkle_root).slice(0, 12) + "…" + mark,
             );
-            fill("seal", (g, W, H) => drawSeal(g, W, H, cp.signature), "ed25519 · " + String(cp.signature).slice(0, 14) + "…");
+            fill("seal", (g, W, H) => drawSeal(g, W, H, cp.signature), "ed25519 · " + String(cp.signature).slice(0, 14) + "…" + mark);
           } else {
             fill("merkle", (g, W, H) => drawMerkle(g, W, H, { merkle_root: "", seq_from: 1, seq_to: 8 }), "no checkpoint yet");
             fill("seal", (g, W, H) => drawSeal(g, W, H, ""), "no checkpoint yet");
@@ -2544,7 +2625,7 @@
             "verdicts",
             (g, W, H) => drawVerdicts(g, W, H, counts),
             decided
-              ? counts.ALLOW + " allowed · " + counts.ESCALATE + " to a person · " + counts.DENY + " blocked"
+              ? counts.ALLOW + " allowed · " + counts.ESCALATE + " to a person · " + counts.DENY + " blocked" + mark
               : "no decisions yet",
           );
         }
@@ -2573,21 +2654,44 @@
       })();
 
       /* ------------------------------------------------------------------ say whether this is live - */
+      // Three states, never conflated: a reachable gate is "live", a hosted copy with a recording is
+      // "recorded", and neither is "offline". "Offline" on a hosted page read as a product that had
+      // fallen over, which is the wrong thing to imply — but so would quietly saying "live".
       (async function health() {
+        const set = (id, txt) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = txt;
+        };
+        const dot = document.getElementById("dot");
+
         try {
           const d = await (await fetch("/healthz")).json();
-          const ok = !!d.ok;
-          document.getElementById("dot").classList.toggle("off", !ok);
-          document.getElementById("statusText").textContent = ok ? "live" : "offline";
-          document.getElementById("sGate").textContent = ok ? "Live" : "Offline";
-          document.getElementById("sRules").textContent = "v" + (d.active_policy_version ?? "—");
-          document.getElementById("sChain").textContent = d.db ? "Verified" : "Unknown";
-          document.getElementById("foot").textContent = ok
-            ? "running on this machine · rules v" + (d.active_policy_version ?? "—")
-            : "honestly labelled";
+          if (!d.ok) throw new Error("not ok");
+          dot.classList.remove("off", "rec");
+          set("statusText", "live");
+          set("sGate", "Live");
+          set("sRules", "v" + (d.active_policy_version ?? "—"));
+          set("sChain", d.db ? "Verified" : "Unknown");
+          set("foot", "running on this machine · rules v" + (d.active_policy_version ?? "—"));
+          return;
         } catch {
-          document.getElementById("statusText").textContent = "offline";
-          document.getElementById("sGate").textContent = "Offline";
+          /* no gate — fall through to the recording */
+        }
+
+        const rp = await loadReplay();
+        if (rp) {
+          dot.classList.remove("off");
+          dot.classList.add("rec");
+          set("statusText", "recorded");
+          set("sGate", "Recorded");
+          set("sRules", "v" + (rp.gate?.policy_version ?? "—"));
+          set("sChain", (rp.checkpoints?.length ?? 0) + " sealed");
+          set("foot", "a recorded run · " + recordedOn(rp.recorded_at) + " · run it yourself to decide live");
+        } else {
+          dot.classList.add("off");
+          set("statusText", "offline");
+          set("sGate", "Offline");
+          set("foot", "honestly labelled");
         }
       })();
       })();

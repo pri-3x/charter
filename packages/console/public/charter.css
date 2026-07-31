@@ -591,6 +591,12 @@ section {
 .dot.off {
   background: var(--deny);
 }
+/* Replaying a recording: amber, and no pulse. Green would imply a live gate, red would imply the
+   product had fallen over — it is neither. */
+.dot.rec {
+  background: var(--hold);
+  animation: none;
+}
 
 @keyframes pulse {
   0%,
@@ -601,7 +607,7 @@ section {
     opacity: 0.25;
   }
 }
-.dot:not(.off) {
+.dot:not(.off):not(.rec) {
   animation: pulse 2.4s ease-in-out infinite;
 }
 

@@ -42,4 +42,14 @@ copy("index.html", join("console", "index.html"));
 copy("charter.css", join("console", "charter.css"));
 copy("charter.js", join("console", "charter.js"));
 
+// The recorded run, fetched by the landing page with a relative URL — so it sits beside it at the
+// root. Not copied into console/: charter.js has no replay path, and shipping a file nothing reads
+// invites someone to assume the console has one.
+if (existsSync(join(src, "replay.json"))) {
+  copy("replay.json", "replay.json");
+} else {
+  console.warn("  replay.json missing — the hosted page will show the offline state.");
+  console.warn("  regenerate it with: node scripts/record-replay.mjs (needs a running local gate)");
+}
+
 console.log("[build-static] done");
