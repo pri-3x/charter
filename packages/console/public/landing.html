@@ -1480,6 +1480,10 @@
 
         <form class="wait" id="waitForm" novalidate>
           <label class="sr-only" for="waitEmail">Email address</label>
+          <!-- Honeypot. Real people never see it, so anything that fills it is a bot and Formspree
+               discards the submission. Works with a JSON POST as long as the field is in the body. -->
+          <input type="text" name="_gotcha" id="waitGotcha" tabindex="-1" autocomplete="off" aria-hidden="true"
+                 style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
           <input
             id="waitEmail"
             name="email"
@@ -1519,7 +1523,7 @@
         </div>
 
         <p class="cap wait-note" id="waitNote" role="status" aria-live="polite">
-          Just your email. No tracking on this page, and nothing passed to anyone else.
+          Just your email. It reaches us via Formspree, is used only to tell you about Charter, and goes to nobody else. No tracking on this page.
         </p>
       </div>
     </section>
@@ -2996,8 +3000,13 @@
 
       /* ----------------------------------------------------------------------------- the waitlist -- */
       // ─────────────────────────────────────────────────────────────────────────────────────────────
-      // SET THIS to an endpoint that accepts a POST and stores the address (Formspree, Tally, a Vercel
-      // function, Buttondown…). The confirmation state is wired to a 2xx from it and nothing else.
+      // SET THIS to the Formspree endpoint — it looks exactly like https://formspree.io/f/xxxxxxxx
+      // (Formspree dashboard → your form → the "endpoint" URL). Nothing else needs to change: the
+      // confirmation state is wired to a 2xx from this call and nothing else.
+      //
+      // Do NOT enable reCAPTCHA on the Formspree form. It requires their browser library, and this
+      // page posts with a plain fetch — turning it on makes every submission fail. Their built-in
+      // spam filtering plus the _gotcha honeypot below needs no client library.
       //
       // While it is empty the form stays honest rather than convenient: it does not show "you are on
       // the list", because nothing would be. It offers a mail link the visitor can choose to click —
@@ -3064,7 +3073,12 @@
             const r = await fetch(WAITLIST_ENDPOINT, {
               method: "POST",
               headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify({ email, source: "charter-landing" }),
+              body: JSON.stringify({
+                email,
+                source: "charter-landing",
+                _gotcha: document.getElementById("waitGotcha")?.value || "",
+                _subject: "Charter waitlist: " + email,
+              }),
             });
             if (!r.ok) throw new Error("HTTP " + r.status);
             done(email);
