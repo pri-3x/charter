@@ -66,21 +66,99 @@ const indexPath = join(out, "index.html");
 let html = readFileSync(indexPath, "utf8");
 
 const abs = (p) => origin + p;
-// JSON-LD: only claims that are demonstrably true from the repo. No ratings, no prices, no
-// invented org details — structured data that overstates is worse than none.
+
+/**
+ * Pull the question/answer pairs out of the compliance grid in the rendered HTML. Returns schema.org
+ * Question nodes. Throws if it finds none, because silently emitting an empty FAQPage would be worse
+ * than emitting nothing at all.
+ */
+function faqFromPage(markup) {
+  // Sliced on explicit string boundaries, not a regex. A lazy [\s\S]*? stops at the first nested
+  // </div>, the match then fails, and falling back to the whole document silently swept in the three
+  // feature headings from section 01 — which are statements, not questions. Fail loudly instead.
+  const OPEN = '<div class="evid">';
+  const CLOSE = 'id="reportBtn"'; // the first thing after the grid closes
+  const a = markup.indexOf(OPEN);
+  const b = markup.indexOf(CLOSE, a);
+  if (a < 0 || b < 0) {
+    console.error("[build-static] could not locate the compliance grid — FAQ markup would be wrong.");
+    process.exit(1);
+  }
+  const scope = markup.slice(a + OPEN.length, b);
+  const text = (h) =>
+    h
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&#39;|&rsquo;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const out = [];
+  const re = /<h3>([\s\S]*?)<\/h3>\s*<p>([\s\S]*?)<\/p>/g;
+  let m;
+  while ((m = re.exec(scope))) {
+    const name = text(m[1]);
+    const answer = text(m[2]);
+    if (name && answer) out.push({ "@type": "Question", name, acceptedAnswer: { "@type": "Answer", text: answer } });
+  }
+  if (!out.length) {
+    console.error("[build-static] found no Q/A pairs for the FAQ — has the compliance grid changed?");
+    process.exit(1);
+  }
+  return out;
+}
+
+// JSON-LD. Only claims that are demonstrably true from the repo — no ratings, no prices, no invented
+// org details. Structured data that overstates is worse than none: it is the one part of the page a
+// search engine treats as an assertion of fact rather than marketing.
+//
+// Emitted as a @graph so the three entities can reference each other by @id rather than repeating
+// themselves, which is what lets the FAQ be attributed to the software and the software to the org.
 const ld = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "Charter",
-  url: abs("/"),
-  applicationCategory: "DeveloperApplication",
-  applicationSubCategory: "AI agent authorization and audit",
-  operatingSystem: "Linux, macOS",
-  description:
-    "A policy gate that sits between an AI agent and the tools it calls, fused with a tamper-evident audit ledger. Every action is checked against a written authority before it runs; every verdict is committed to a hash chain sealed by signed Merkle checkpoints.",
-  softwareVersion: "prototype",
-  isAccessibleForFree: true,
-  author: { "@type": "Organization", name: "Charter" },
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": abs("/#org"),
+      name: "Charter",
+      url: abs("/"),
+      logo: { "@type": "ImageObject", url: abs("/icon.png"), width: 512, height: 512 },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": abs("/#software"),
+      name: "Charter",
+      url: abs("/"),
+      applicationCategory: "DeveloperApplication",
+      applicationSubCategory: "AI agent authorization and audit",
+      operatingSystem: "Linux, macOS",
+      description:
+        "A policy gate that sits between an AI agent and the tools it calls, fused with a tamper-evident audit ledger. Every action is checked against a written authority before it runs; every verdict is committed to a hash chain sealed by signed Merkle checkpoints.",
+      softwareVersion: "prototype",
+      isAccessibleForFree: true,
+      publisher: { "@id": abs("/#org") },
+      featureList: [
+        "Runtime policy gate: allow, deny, or escalate every tool call before it executes",
+        "Human approval over Telegram, with the approver's identity recorded",
+        "Append-only hash-chained ledger enforced by database role permissions",
+        "Signed Ed25519 Merkle checkpoints anchoring ranges of history",
+        "Independent verifier that shares no code with the writer",
+        "Attestation export mapped to SOC 2, EU AI Act and RBI control references",
+      ],
+    },
+    {
+      // Derived from the rendered page, not written here. Google requires FAQ markup to mirror
+      // content the visitor can actually see, and hand-writing richer answers is exactly how that
+      // requirement gets quietly broken: an earlier draft of this asserted things like "self-approval
+      // is refused" that are true of the product but appear nowhere on this page. Extracting the
+      // question and answer from section 06's own markup makes the two impossible to desynchronise —
+      // edit the copy and the structured data follows.
+      "@type": "FAQPage",
+      "@id": abs("/#faq"),
+      about: { "@id": abs("/#software") },
+      mainEntity: faqFromPage(html),
+    }
+  ],
 };
 
 html = html.replace(
@@ -96,6 +174,21 @@ html = html.replace(
     `    <script type="application/ld+json">${JSON.stringify(ld)}</script>`,
   ].join("\n"),
 );
+// Inline the stylesheet into the landing page. It is the only render-blocking request left, and at
+// ~5.7 KB over the wire the round trip costs more than the bytes. The console keeps the external
+// file: it is a different page, it is noindex, and it benefits from the shared cache entry.
+const cssPath = join(src, "charter.css");
+if (existsSync(cssPath)) {
+  const css = readFileSync(cssPath, "utf8");
+  const before = html.length;
+  html = html.replace(
+    '<link rel="stylesheet" href="/console/charter.css" />',
+    "<style>\n" + css + "\n    </style>",
+  );
+  if (html.length === before) console.warn("  css inline    ->  SKIPPED: stylesheet link not found");
+  else console.log(`  css inline     ->  ${css.length} bytes, no blocking request left`);
+}
+
 writeFileSync(indexPath, html);
 console.log(`  seo            ->  canonical + og + json-ld at ${origin}`);
 
@@ -132,5 +225,39 @@ writeFileSync(join(out, "og.png"), socialCard(seed));
 console.log(`  og.png         ->  1200x630 (${statSync(join(out, "og.png")).size} bytes)`);
 writeFileSync(join(out, "icon.png"), appIcon());
 console.log(`  icon.png       ->  512x512 (${statSync(join(out, "icon.png")).size} bytes)`);
+
+// A 404 that looks like the site. Vercel's default is a bare white page, which for a one-page site
+// is the most likely thing a visitor sees after a stale link or a typo.
+const notFound = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Not found — Charter</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      :root { color-scheme: light dark }
+      body { margin:0; min-height:100svh; display:grid; place-content:center; gap:14px;
+             background:#f2f0ea; color:#171614; text-align:center; padding:24px;
+             font-family:"Helvetica Neue",Inter,-apple-system,system-ui,sans-serif }
+      .k { font-family:ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.11em;
+           text-transform:uppercase; color:#ff5c1a }
+      h1 { margin:0; font-size:clamp(26px,4vw,40px); letter-spacing:-.035em; font-weight:700 }
+      p { margin:0; color:#55524b; max-width:44ch }
+      a { color:#171614; text-underline-offset:3px }
+      @media (prefers-color-scheme: dark) {
+        body { background:#232323; color:#f2f0ea } p { color:#a8a49b } a { color:#f2f0ea }
+      }
+    </style>
+  </head>
+  <body>
+    <p class="k">404</p>
+    <h1>Nothing is charted here.</h1>
+    <p>That page does not exist. <a href="/">Go to the start</a>.</p>
+  </body>
+</html>
+`;
+writeFileSync(join(out, "404.html"), notFound);
+console.log("  404.html       ->  styled, noindex");
 
 console.log("[build-static] done");
