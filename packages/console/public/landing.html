@@ -3011,7 +3011,7 @@
       // While it is empty the form stays honest rather than convenient: it does not show "you are on
       // the list", because nothing would be. It offers a mail link the visitor can choose to click —
       // it no longer navigates the browser to a mail client on its own, which read as a malfunction.
-      const WAITLIST_ENDPOINT = "";
+      const WAITLIST_ENDPOINT = "https://formspree.io/f/maqrrank";
       const WAITLIST_MAILTO = "priyanshu@totofinance.co";
       // ─────────────────────────────────────────────────────────────────────────────────────────────
       (function waitlist() {
@@ -3070,15 +3070,20 @@
           btn.disabled = true;
           say("Sending…", null);
           try {
+            // Form-encoded, NOT JSON. Verified against the live endpoint: a JSON body gets back
+            // 202 + text/html with NO Access-Control-Allow-Origin, so the browser rejects the
+            // response and the visitor is told it failed while the address quietly arrives. The same
+            // submission form-encoded returns 200 + application/json WITH the CORS header. It also
+            // skips the preflight, since x-www-form-urlencoded is a CORS-simple content type.
             const r = await fetch(WAITLIST_ENDPOINT, {
               method: "POST",
-              headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify({
+              headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+              body: new URLSearchParams({
                 email,
                 source: "charter-landing",
                 _gotcha: document.getElementById("waitGotcha")?.value || "",
                 _subject: "Charter waitlist: " + email,
-              }),
+              }).toString(),
             });
             if (!r.ok) throw new Error("HTTP " + r.status);
             done(email);
