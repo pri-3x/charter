@@ -4,8 +4,8 @@
  * Deliberately wordless. Rendering type into a raster needs a font rasteriser, and shipping one to
  * put "Charter" on a card is not worth it — the title and description come from the meta tags, which
  * is what every platform renders beside the image anyway. What the image carries instead is the
- * mark (the open seal) and the chain motif from the artefacts panel, so the card is recognisably
- * this product rather than a stock gradient.
+ * mark (the keyhole) and the chain motif from the artefacts panel, so the card is recognisably this
+ * product rather than a stock gradient.
  */
 import { Raster } from "./png.mjs";
 
@@ -13,16 +13,38 @@ const CARBON = [0x23, 0x23, 0x23];
 const PAPER = [0xf2, 0xf0, 0xea];
 const ACCENT = [0xff, 0x5c, 0x1a];
 
-/** The open seal: two rings with a gap in the upper right, plus the accent tick. */
-function seal(img, cx, cy, r, stroke) {
-  // Gap centred on -45°, 40° wide, matching the dasharray in the inline SVG mark.
-  const GAP_FROM = -Math.PI / 3.4;
-  const GAP_TO = -Math.PI / 12;
-  img.ring(cx, cy, r, stroke, PAPER, 1, GAP_TO, GAP_FROM + Math.PI * 2);
-  img.ring(cx, cy, r * 0.595, stroke * 0.62, PAPER, 0.42);
-  const s = r / 9.25; // the mark is authored in a 24-unit box with r = 9.25
-  img.line(cx - 3 * s, cy + 0.2 * s, cx - 0.6 * s, cy + 2.6 * s, stroke * 1.35, ACCENT);
-  img.line(cx - 0.6 * s, cy + 2.6 * s, cx + 4.2 * s, cy - 2.6 * s, stroke * 1.35, ACCENT);
+/**
+ * The Charter mark: a keyhole cut OUT of a solid tile, with the gate barred across the opening.
+ *
+ * The void is not a stylistic choice. Drawn as a solid positive shape — a light bowl and skirt on a
+ * dark field — the same geometry reads unmistakably as a chess pawn wearing a belt. A keyhole is
+ * legible only as an aperture, so the tile is the surface and the keyhole is the hole punched
+ * through it. `hole` is the colour showing through, i.e. whatever the tile is sitting on.
+ *
+ * Authored in a 32-unit box so the numbers match the inline SVG in the pages. Change one, change both.
+ */
+function mark(img, cx, cy, size, hole) {
+  const s = size / 32;
+  const X = (u) => cx + (u - 16) * s;
+  const Y = (v) => cy + (v - 16) * s;
+
+  img.roundRect(X(2), Y(2), 28 * s, 28 * s, 7 * s, PAPER);
+
+  // the aperture: bowl + flared skirt, in the background colour
+  img.disc(X(16), Y(13.5), 4.6 * s, hole);
+  img.poly(
+    [
+      [X(13.7), Y(17.5)],
+      [X(18.3), Y(17.5)],
+      [X(20), Y(25)],
+      [X(12), Y(25)],
+    ],
+    hole,
+  );
+
+  // The gate: wider than the passage on both sides, so it reads as barring the opening rather than
+  // sitting inside it.
+  img.capsule(X(10.4), Y(19.4), 11.2 * s, 2.9 * s, ACCENT);
 }
 
 /** A faint dot grid, the same texture as the carbon panels on the page. */
@@ -57,10 +79,10 @@ export function socialCard(seedBytes) {
   const img = new Raster(W, H, CARBON);
   dots(img, 24, 0.05);
 
-  seal(img, 250, H / 2, 132, 13);
+  mark(img, 250, H / 2, 300, CARBON);
   chain(img, 470, H / 2, 640, 300, seedBytes);
 
-  // Accent rule along the bottom, the width of the seal — a signature stroke, not a progress bar.
+  // Accent rule along the bottom, the width of the mark — a signature stroke, not a progress bar.
   img.rect(118, H - 74, 264, 4, ACCENT, 1);
   return img.toPNG();
 }
@@ -70,6 +92,6 @@ export function appIcon() {
   const S = 512;
   const img = new Raster(S, S, CARBON);
   dots(img, 32, 0.05);
-  seal(img, S / 2, S / 2, 150, 15);
+  mark(img, S / 2, S / 2, 320, CARBON);
   return img.toPNG();
 }

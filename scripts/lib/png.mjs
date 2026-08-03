@@ -67,7 +67,7 @@ export class Raster {
   }
 
   /**
-   * Anti-aliased ring. `from`/`to` are radians; a partial sweep is how the mark's open seal is drawn.
+   * Anti-aliased ring. `from`/`to` are radians, so a partial sweep draws an arc rather than a circle.
    * Coverage comes from the distance to the ideal radius, which is what keeps the edge smooth.
    */
   ring(cx, cy, r, width, rgb, a = 1, from = 0, to = Math.PI * 2) {
@@ -93,7 +93,70 @@ export class Raster {
     }
   }
 
-  /** Anti-aliased thick line, used for the tick. */
+  /** Anti-aliased filled disc. Coverage from the distance to the edge, same idea as ring(). */
+  disc(cx, cy, r, rgb, a = 1) {
+    for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
+      for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
+        const cov = Math.min(1, Math.max(0, r + 0.5 - Math.hypot(x - cx, y - cy)));
+        if (cov > 0) this.blend(x, y, rgb, a * cov);
+      }
+    }
+  }
+
+  /**
+   * Filled convex polygon. Coverage by 3x3 supersampling rather than exact area — the shapes here
+   * are a handful of straight edges at poster scale, where the difference is invisible and the
+   * bookkeeping for exact coverage is not worth it.
+   */
+  poly(pts, rgb, a = 1) {
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const inside = (px, py) => {
+      let sign = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const [x1, y1] = pts[i];
+        const [x2, y2] = pts[(i + 1) % pts.length];
+        const cross = (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
+        if (cross !== 0) {
+          const s = cross > 0 ? 1 : -1;
+          if (sign === 0) sign = s;
+          else if (s !== sign) return false;
+        }
+      }
+      return true;
+    };
+    const N = 3;
+    for (let y = Math.floor(Math.min(...ys)) - 1; y <= Math.ceil(Math.max(...ys)) + 1; y++) {
+      for (let x = Math.floor(Math.min(...xs)) - 1; x <= Math.ceil(Math.max(...xs)) + 1; x++) {
+        let hit = 0;
+        for (let sy = 0; sy < N; sy++)
+          for (let sx = 0; sx < N; sx++)
+            if (inside(x + (sx + 0.5) / N, y + (sy + 0.5) / N)) hit++;
+        if (hit) this.blend(x, y, rgb, (a * hit) / (N * N));
+      }
+    }
+  }
+
+  /** Rounded rectangle, built from the straight spans plus a disc at each corner. */
+  roundRect(x, y, w, h, r, rgb, a = 1) {
+    this.rect(x + r, y, w - 2 * r, h, rgb, a);
+    this.rect(x, y + r, r, h - 2 * r, rgb, a);
+    this.rect(x + w - r, y + r, r, h - 2 * r, rgb, a);
+    this.disc(x + r, y + r, r, rgb, a);
+    this.disc(x + w - r, y + r, r, rgb, a);
+    this.disc(x + r, y + h - r, r, rgb, a);
+    this.disc(x + w - r, y + h - r, r, rgb, a);
+  }
+
+  /** A bar with semicircular ends — the SVG `rx = height / 2` rounding, in raster. */
+  capsule(x, y, w, h, rgb, a = 1) {
+    const r = h / 2;
+    this.rect(x + r, y, w - h, h, rgb, a);
+    this.disc(x + r, y + r, r, rgb, a);
+    this.disc(x + w - r, y + r, r, rgb, a);
+  }
+
+  /** Anti-aliased thick line. */
   line(x0, y0, x1, y1, width, rgb, a = 1) {
     const n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2));
     for (let k = 0; k <= n; k++) {

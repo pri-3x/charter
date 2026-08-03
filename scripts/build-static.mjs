@@ -91,7 +91,7 @@ html = html.replace(
     `    <meta property="og:image" content="${abs("/og.png")}" />`,
     `    <meta property="og:image:width" content="1200" />`,
     `    <meta property="og:image:height" content="630" />`,
-    `    <meta property="og:image:alt" content="The Charter mark — an open seal with a tick — beside the hash chain it writes." />`,
+    `    <meta property="og:image:alt" content="The Charter mark — a keyhole with the gate barred across it — beside the hash chain it writes." />`,
     `    <meta name="twitter:image" content="${abs("/og.png")}" />`,
     `    <script type="application/ld+json">${JSON.stringify(ld)}</script>`,
   ].join("\n"),

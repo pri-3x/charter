@@ -33,10 +33,11 @@
       content="A policy gate your agent has to ask before it moves money, fused with a ledger nobody can edit."
     />
 
-    <!-- The mark, inline so the tab icon costs no request. -->
+    <!-- The mark, inline so the tab icon costs no request. Slightly inset from the nav version so it
+         has breathing room inside the rounded tile that browsers draw it in. -->
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect width='24' height='24' rx='5' fill='%23232323'/%3E%3Ccircle cx='12' cy='12' r='7.4' stroke='%23f2f0ea' stroke-width='1.5' stroke-linecap='round' stroke-dasharray='41.3 5.2' stroke-dashoffset='8.4'/%3E%3Cpath d='M9.4 12.2l2 2 3.9-4.3' stroke='%23ff5c1a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='1' width='30' height='30' rx='7.5' fill='%23f2f0ea'/%3E%3Ccircle cx='16' cy='13.5' r='4.6' fill='%23232323'/%3E%3Cpath d='M13.7 17.5L12 25h8l-1.7-7.5z' fill='%23232323'/%3E%3Crect x='10.4' y='19.4' width='11.2' height='2.9' rx='1.45' fill='%23ff5c1a'/%3E%3C/svg%3E"
     />
     <link rel="apple-touch-icon" href="/icon.png" />
 
@@ -987,28 +988,18 @@
       <div class="inner">
         <nav class="pillnav" aria-label="Primary">
           <span class="brandmark" aria-label="Charter">
-            <!-- The Charter mark: a seal, open at the top right. The ring is the authority, the gap
-                 is that it can be withdrawn, the tick is the verdict. Same geometry as the seal in
-                 the artefacts panel, so the logo is made of the product's own parts. -->
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle
-                cx="12"
-                cy="12"
-                r="9.25"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-dasharray="51.66 6.46"
-                stroke-dashoffset="10.49"
-              />
-              <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="1" opacity=".4" />
-              <path
-                d="M9 12.2l2.4 2.4 4.8-5.2"
-                stroke="#ff5c1a"
-                stroke-width="2.1"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
+            <!-- The Charter mark: a keyhole cut out of a solid tile, with the gate barred across the opening.
+                 The void matters — drawn as a solid positive shape the same geometry reads as a chess pawn, so
+                 the tile is the surface and the keyhole is the hole through it. Coordinates match
+                 scripts/lib/social-card.mjs; change one, change both. -->
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <mask id="chKeyhole">
+                <rect width="32" height="32" fill="#fff" />
+                <circle cx="16" cy="13.5" r="4.6" fill="#000" />
+                <path d="M13.7 17.5L12 25h8l-1.7-7.5z" fill="#000" />
+              </mask>
+              <rect x="2" y="2" width="28" height="28" rx="7" fill="currentColor" mask="url(#chKeyhole)" />
+              <rect x="10.4" y="19.4" width="11.2" height="2.9" rx="1.45" fill="#ff5c1a" />
             </svg>
           </span>
           <a href="#what" data-odo>What it does</a>
