@@ -54,72 +54,63 @@ if (existsSync(join(src, "replay.json"))) {
 }
 
 // ---------------------------------------------------------------------------------------- SEO ----
-// The origin is only known at deploy time, so every absolute URL is injected here rather than
-// hard-coded in the source. Vercel exposes the production domain to the build, which means the
-// canonical and the card URLs are right without anyone remembering to update a constant.
-const origin = (
-  process.env.SITE_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ??
-  ""
-).replace(/\/$/, "");
-
-if (!origin) {
-  console.warn("  no SITE_URL / VERCEL_PROJECT_PRODUCTION_URL — canonical, og:url and sitemap are");
-  console.warn("  omitted rather than pointed at a guess. Set SITE_URL to emit them.");
-}
+// The one canonical home. Deliberately NOT falling back to VERCEL_PROJECT_PRODUCTION_URL:
+// the site is reachable on both usecharter.xyz and the project's *.vercel.app host, and pointing the
+// canonical at whichever host built it would tell crawlers the vercel.app copy is the original.
+// Every absolute URL — canonical, og:url, og:image, the sitemap — must name the real domain wherever
+// the build happens to run. SITE_URL still overrides, for a staging domain or a rename.
+const CANONICAL_ORIGIN = "https://usecharter.xyz";
+const origin = (process.env.SITE_URL || CANONICAL_ORIGIN).replace(/\/$/, "");
 
 const indexPath = join(out, "index.html");
 let html = readFileSync(indexPath, "utf8");
 
-if (origin) {
-  const abs = (p) => origin + p;
-  // JSON-LD: only claims that are demonstrably true from the repo. No ratings, no prices, no
-  // invented org details — structured data that overstates is worse than none.
-  const ld = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "Charter",
-    url: abs("/"),
-    applicationCategory: "DeveloperApplication",
-    applicationSubCategory: "AI agent authorization and audit",
-    operatingSystem: "Linux, macOS",
-    description:
-      "A policy gate that sits between an AI agent and the tools it calls, fused with a tamper-evident audit ledger. Every action is checked against a written authority before it runs; every verdict is committed to a hash chain sealed by signed Merkle checkpoints.",
-    softwareVersion: "prototype",
-    isAccessibleForFree: true,
-    author: { "@type": "Organization", name: "Charter" },
-  };
+const abs = (p) => origin + p;
+// JSON-LD: only claims that are demonstrably true from the repo. No ratings, no prices, no
+// invented org details — structured data that overstates is worse than none.
+const ld = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Charter",
+  url: abs("/"),
+  applicationCategory: "DeveloperApplication",
+  applicationSubCategory: "AI agent authorization and audit",
+  operatingSystem: "Linux, macOS",
+  description:
+    "A policy gate that sits between an AI agent and the tools it calls, fused with a tamper-evident audit ledger. Every action is checked against a written authority before it runs; every verdict is committed to a hash chain sealed by signed Merkle checkpoints.",
+  softwareVersion: "prototype",
+  isAccessibleForFree: true,
+  author: { "@type": "Organization", name: "Charter" },
+};
 
-  html = html.replace(
-    '<link rel="canonical" href="/" />',
-    [
-      `<link rel="canonical" href="${abs("/")}" />`,
-      `    <meta property="og:url" content="${abs("/")}" />`,
-      `    <meta property="og:image" content="${abs("/og.png")}" />`,
-      `    <meta property="og:image:width" content="1200" />`,
-      `    <meta property="og:image:height" content="630" />`,
-      `    <meta property="og:image:alt" content="The Charter mark — an open seal with a tick — beside the hash chain it writes." />`,
-      `    <meta name="twitter:image" content="${abs("/og.png")}" />`,
-      `    <script type="application/ld+json">${JSON.stringify(ld)}</script>`,
-    ].join("\n"),
-  );
-  writeFileSync(indexPath, html);
-  console.log(`  seo            ->  canonical + og + json-ld at ${origin}`);
+html = html.replace(
+  '<link rel="canonical" href="/" />',
+  [
+    `<link rel="canonical" href="${abs("/")}" />`,
+    `    <meta property="og:url" content="${abs("/")}" />`,
+    `    <meta property="og:image" content="${abs("/og.png")}" />`,
+    `    <meta property="og:image:width" content="1200" />`,
+    `    <meta property="og:image:height" content="630" />`,
+    `    <meta property="og:image:alt" content="The Charter mark — an open seal with a tick — beside the hash chain it writes." />`,
+    `    <meta name="twitter:image" content="${abs("/og.png")}" />`,
+    `    <script type="application/ld+json">${JSON.stringify(ld)}</script>`,
+  ].join("\n"),
+);
+writeFileSync(indexPath, html);
+console.log(`  seo            ->  canonical + og + json-ld at ${origin}`);
 
-  writeFileSync(
-    join(out, "sitemap.xml"),
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${abs("/")}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`,
-  );
-  console.log("  sitemap.xml    ->  1 url (the console is intentionally excluded)");
-}
+writeFileSync(
+  join(out, "sitemap.xml"),
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${abs("/")}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`,
+);
+console.log("  sitemap.xml    ->  1 url (the console is intentionally excluded)");
 
 // The console is an operator UI for a gate, not content. It must never be indexed — and the sitemap
 // above lists only the landing page for the same reason.
 writeFileSync(
   join(out, "robots.txt"),
-  ["User-agent: *", "Allow: /", "Disallow: /console/", origin ? `\nSitemap: ${origin}/sitemap.xml` : ""]
-    .filter(Boolean)
-    .join("\n") + "\n",
+  ["User-agent: *", "Allow: /", "Disallow: /console/", "", `Sitemap: ${origin}/sitemap.xml`].join("\n") +
+    "\n",
 );
 console.log("  robots.txt     ->  allow /, disallow /console/");
 
