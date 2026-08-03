@@ -888,6 +888,68 @@
       .wait-note.bad {
         color: var(--deny-lift);
       }
+
+      /* The confirmation that replaces the form once an address is actually stored. */
+      .wait-done {
+        display: grid;
+        justify-items: center;
+        gap: var(--s-8);
+        animation: waitIn 0.5s var(--ease) both;
+      }
+      .wait-done[hidden] {
+        display: none;
+      }
+      .wait-done svg {
+        width: 44px;
+        height: 44px;
+        fill: none;
+        margin-bottom: var(--s-4);
+      }
+      /* The tick draws itself in — the same stroke the mark uses, doing the same job. */
+      .wait-done .tk {
+        stroke-dasharray: 30;
+        stroke-dashoffset: 30;
+        animation: tick 0.45s var(--ease) 0.18s both;
+      }
+      .wait-done .h {
+        font-size: 20px;
+        letter-spacing: -0.02em;
+        color: var(--paper);
+      }
+      .wait-done .sub {
+        font-size: 13.5px;
+        line-height: 1.6;
+        text-align: center;
+        max-width: 44ch;
+        color: rgba(242, 240, 234, 0.58);
+      }
+      .wait-done .sub b {
+        color: var(--paper);
+        font-weight: 400;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        overflow-wrap: anywhere;
+      }
+      @keyframes waitIn {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+      }
+      @keyframes tick {
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .wait-done,
+        .wait-done .tk {
+          animation: none;
+        }
+        .wait-done .tk {
+          stroke-dashoffset: 0;
+        }
+      }
       .sr-only {
         position: absolute;
         width: 1px;
@@ -1443,7 +1505,29 @@
           </button>
         </form>
 
-        <p class="cap wait-note" id="waitNote">
+        <!-- Shown only after the address has actually been stored. Never on a failed POST, and never
+             while no endpoint is configured — a confirmation is a claim, and this page cannot make a
+             claim it has not honoured. -->
+        <div class="wait-done" id="waitDone" hidden>
+          <svg viewBox="0 0 44 44" aria-hidden="true">
+            <circle cx="22" cy="22" r="20" stroke="rgba(242,240,234,.22)" stroke-width="1.5" />
+            <path
+              class="tk"
+              d="M13.5 22.6l5.5 5.5 11.5-12.4"
+              stroke="#ff5c1a"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <p class="h">You are on the list.</p>
+          <p class="sub">
+            We will write to <b id="waitWho"></b> when Charter can hold a real credential. Nothing
+            else, and no one else gets it.
+          </p>
+        </div>
+
+        <p class="cap wait-note" id="waitNote" role="status" aria-live="polite">
           Just your email. No tracking on this page, and nothing passed to anyone else.
         </p>
       </div>
@@ -2921,10 +3005,12 @@
 
       /* ----------------------------------------------------------------------------- the waitlist -- */
       // ─────────────────────────────────────────────────────────────────────────────────────────────
-      // SET THIS to a form endpoint that accepts a POST (Formspree, Tally, a Vercel function, …).
-      // While it is empty the form does NOT pretend to work: it opens a prefilled mail draft instead,
-      // so an address is never collected into nothing. A form that silently drops what it is given is
-      // worse than no form, and on this page in particular it would be self-refuting.
+      // SET THIS to an endpoint that accepts a POST and stores the address (Formspree, Tally, a Vercel
+      // function, Buttondown…). The confirmation state is wired to a 2xx from it and nothing else.
+      //
+      // While it is empty the form stays honest rather than convenient: it does not show "you are on
+      // the list", because nothing would be. It offers a mail link the visitor can choose to click —
+      // it no longer navigates the browser to a mail client on its own, which read as a malfunction.
       const WAITLIST_ENDPOINT = "";
       const WAITLIST_MAILTO = "priyanshu@totofinance.co";
       // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -2941,6 +3027,16 @@
           note.classList.toggle("ok", kind === "ok");
           note.classList.toggle("bad", kind === "bad");
         };
+
+        // Swap the form for the confirmation. Only ever called after a 2xx.
+        const doneEl = document.getElementById("waitDone");
+        const who = document.getElementById("waitWho");
+        function done(email) {
+          who.textContent = email;
+          form.hidden = true;
+          doneEl.hidden = false;
+          note.hidden = true;
+        }
 
         // Deliberately permissive: the server is the only thing that can really decide, and rejecting
         // an unusual-but-valid address is a worse failure than accepting a typo.
@@ -2959,12 +3055,15 @@
           input.removeAttribute("aria-invalid");
 
           if (!WAITLIST_ENDPOINT) {
-            // No endpoint wired up. Hand the address back to the visitor in a mail draft rather than
-            // accept it and lose it — and say exactly that, instead of showing a fake success.
+            // No endpoint wired up. Offer a mail link instead of hijacking the browser to a mail
+            // client, and do not claim the address was stored — because it was not.
             const subject = encodeURIComponent("Charter waitlist");
             const body = encodeURIComponent(`Add me to the Charter waitlist: ${email}\n`);
-            location.href = `mailto:${WAITLIST_MAILTO}?subject=${subject}&body=${body}`;
-            say("Opening a mail draft — the waitlist has no server behind it yet.", null);
+            note.classList.remove("bad", "ok");
+            note.innerHTML =
+              'The waitlist is not collecting yet — send it to ' +
+              `<a href="mailto:${WAITLIST_MAILTO}?subject=${subject}&body=${body}">` +
+              `${WAITLIST_MAILTO}</a> and you will be added by hand.`;
             return;
           }
 
@@ -2977,8 +3076,7 @@
               body: JSON.stringify({ email, source: "charter-landing" }),
             });
             if (!r.ok) throw new Error("HTTP " + r.status);
-            form.reset();
-            say("You are on the list. You will hear when it can hold a credential.", "ok");
+            done(email);
           } catch (err) {
             // Never claim success on a failed POST: the visitor needs to know it did not land.
             say("That did not send (" + err.message + "). Email " + WAITLIST_MAILTO + " instead.", "bad");
