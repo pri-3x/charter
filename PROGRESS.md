@@ -1,5 +1,51 @@
 # PROGRESS.md
 
+## Public site — domain, mark, waitlist  ✅ (2026-08-03)
+
+Front-end and deployment only. No gate, SDK, policy or schema code touched.
+
+### What landed
+
+- **`usecharter.xyz`** attached (GoDaddy DNS → Vercel). The canonical origin is now a constant in
+  `scripts/build-static.mjs` rather than derived from `VERCEL_PROJECT_PRODUCTION_URL`, which would
+  have pointed canonical, `og:url` and the sitemap at the `.vercel.app` copy and told crawlers *that*
+  was the original.
+- **The keyhole mark**, adopted as a counterform — see the note below on why the shape had to invert.
+- **The waitlist works.** Formspree, with a `_gotcha` honeypot and a `_subject` so notifications are
+  scannable. The confirmation state is wired to a 2xx and nothing else; a failed POST or an
+  unconfigured endpoint never shows it.
+- Nav centred with the status chip pinned, a scroll-spy that boxes the section under a reading line at
+  38% viewport height, and the compliance section now naming SOC 2 / EU AI Act / RBI control
+  references lifted verbatim from `controls.ts`.
+
+### Two findings worth keeping
+
+**The keyhole only works as a void.** Drawn as the positive shape it was sketched as, at 300px on the
+social card the identical geometry reads unmistakably as a chess pawn wearing a belt. It is legible
+only as an aperture, so the tile is the surface and the keyhole is the hole through it. Every 16px
+preview hid this — it appeared only at poster size, which inverts the usual "test it small" advice.
+
+**Formspree needs a form-encoded body, not JSON.** Verified against the live endpoint:
+
+| body | status | content-type | `Access-Control-Allow-Origin` |
+|---|---|---|---|
+| JSON | 202 | `text/html` | **absent** |
+| form-encoded | 200 | `application/json` | present |
+
+With JSON the browser rejects the response even though Formspree accepted the submission, so the
+visitor is told it failed while their address quietly arrives. Invisible to any stubbed test. It also
+turns out `Accept: application/json` *is* honoured on the error path — an empty submission returns a
+proper 400 JSON body — so only the success path falls back to the HTML flow.
+
+### Deployment note (a self-inflicted one)
+
+Four commits (`b9adcd8`…`e8cbc87`) never reached production. Vercel refuses to deploy a commit whose
+author email it cannot map to a GitHub account, and every one of those commits was authored
+`priyanshu@totofinance.co` — not because git was misconfigured (the global config was correct all
+along) but because the commits were made with an explicit `-c user.email=` override. The fix is to
+stop overriding it. Worth knowing that Vercel fails this closed and silently: the pushes succeeded,
+the site simply stopped updating, and the only visible symptom was a stale `age` header.
+
 ## Landing page — density pass + two new sections  ✅ (2026-07-30)
 
 Front-end only. No gate, SDK, policy or schema code was touched. Driven by a design reference the
