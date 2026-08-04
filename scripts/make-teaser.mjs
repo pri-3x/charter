@@ -1,5 +1,5 @@
 /**
- * Build the teaser video: `node scripts/make-teaser.mjs` → dist-web/teaser.mp4
+ * Build the teaser video: `node scripts/make-teaser.mjs` → media/teaser.mp4
  *
  * Frames are drawn with the same Raster primitives that produce the OG card, so the video is in the
  * product's own geometry rather than a template. Raw RGB is piped straight into ffmpeg — there is no
@@ -19,7 +19,9 @@ import { drawText, textWidth, fitScale } from "./lib/bitfont.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const out = join(root, "dist-web");
+// NOT dist-web: build-static.mjs starts with rmSync on that directory, so the video would be
+// deleted by the next site build. media/ is only ever written to.
+const out = join(root, "media");
 
 const W = 1080;
 const H = 1080;

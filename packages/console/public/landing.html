@@ -2890,17 +2890,114 @@
           g.stroke();
         }
 
+        // The sampled art, kept per panel so motion can re-derive frames without redrawing the
+        // diagram or re-reading the canvas. rows[] is the base; every animated frame is this lifted a
+        // step or two up the ramp, never replaced — the shape has to survive the movement.
+        const base = {};
+
         function fill(name, paint, caption) {
           const el = pre[name];
           if (!el) return;
           const { cols, rows } = dims(el);
-          el.textContent = asciiFrom(cols, rows, (g, W, H) => paint(g, W, H));
+          const art = asciiFrom(cols, rows, (g, W, H) => paint(g, W, H));
+          base[name] = { rows: art.split("\n"), cols };
+          el.textContent = art;
           if (capOf[name]) capOf[name].textContent = caption;
+        }
+
+        /* --------------------------------------------------------------------------- motion ----- */
+        // A scan passes through each panel in the direction the thing it depicts actually works:
+        // along the chain, up the Merkle tree from leaves to root, across the verdict feed, outward
+        // from the centre of the seal. Cells inside the band are lifted up the density ramp rather
+        // than substituted, so the drawing brightens as the scan crosses it instead of dissolving.
+        const RAMP_INDEX = new Map([...RAMP].map((c, i) => [c, i]));
+        const lift = (ch, k) => {
+          const i = RAMP_INDEX.get(ch);
+          return i === undefined || i === 0 ? ch : RAMP[Math.min(RAMP.length - 1, i + k)];
+        };
+
+        // Each returns how far to lift the cell at (x, y), given a 0..1 phase.
+        const SCANS = {
+          chain: (x, y, cols, rows, ph) => {
+            const head = ph * (cols + 24) - 12;
+            const d = Math.abs(x - head);
+            return d < 5 ? 3 : d < 11 ? 1 : 0;
+          },
+          merkle: (x, y, cols, rows, ph) => {
+            const head = rows - ph * (rows + 10) + 5; // bottom to top: leaves hash upward
+            const d = Math.abs(y - head);
+            return d < 1.4 ? 3 : d < 3.2 ? 1 : 0;
+          },
+          verdicts: (x, y, cols, rows, ph) => {
+            const head = ph * (cols + 30) - 15;
+            const d = Math.abs(x - head);
+            return d < 7 ? 2 : d < 15 ? 1 : 0;
+          },
+          seal: (x, y, cols, rows, ph) => {
+            // radius in cells, corrected for the ~2:1 cell aspect so the wave stays circular
+            const r = Math.hypot((x - cols / 2) * 0.5, y - rows / 2);
+            const head = ph * (rows * 0.75);
+            const d = Math.abs(r - head);
+            return d < 1.2 ? 3 : d < 2.6 ? 1 : 0;
+          },
+        };
+
+        const PERIOD = { chain: 5200, merkle: 4400, verdicts: 6000, seal: 4800 };
+
+        let motionRAF = 0;
+        let lastPaint = 0;
+        let running = false;
+
+        function paintMotion(now) {
+          motionRAF = 0;
+          // ~9fps on purpose. Each write replaces an 11k-character text node, and four of those at
+          // 60fps is pure jank for an effect that reads better slow anyway.
+          if (now - lastPaint > 108) {
+            lastPaint = now;
+            for (const name of Object.keys(base)) {
+              const scan = SCANS[name];
+              const b = base[name];
+              if (!scan || !b) continue;
+              const ph = ((now % PERIOD[name]) / PERIOD[name] + 1) % 1;
+              const rows = b.rows;
+              const out = new Array(rows.length);
+              for (let y = 0; y < rows.length; y++) {
+                const line = rows[y];
+                let acc = "";
+                let touched = false;
+                for (let x = 0; x < line.length; x++) {
+                  const k = scan(x, y, b.cols, rows.length, ph);
+                  if (k) {
+                    acc += lift(line[x], k);
+                    touched = true;
+                  } else acc += line[x];
+                }
+                out[y] = touched ? acc : line;
+              }
+              pre[name].textContent = out.join("\n");
+            }
+          }
+          if (running) motionRAF = requestAnimationFrame(paintMotion);
+        }
+
+        function setMotion(on) {
+          if (RM) return; // reduced motion: the panels stay as drawn
+          if (on === running) return;
+          running = on;
+          if (on) motionRAF = requestAnimationFrame(paintMotion);
+          else if (motionRAF) {
+            cancelAnimationFrame(motionRAF);
+            motionRAF = 0;
+            // put the untouched art back, so a paused panel is never mid-scan
+            for (const name of Object.keys(base)) pre[name].textContent = base[name].rows.join("\n");
+          }
         }
 
         // Hosted with no gate behind it there is no ledger to draw, and four 384px-tall empty boxes
         // read as a rendering failure. Collapse them and say why instead of inventing shapes.
         function unavailable(note) {
+          setMotion(false);
+          for (const k of Object.keys(base)) delete base[k];
           grid.classList.add("empty");
           Object.values(pre).forEach((el) => (el.textContent = ""));
           Object.values(capOf).forEach((el) => (el.textContent = note));
@@ -2981,11 +3078,22 @@
         function once() {
           if (drawn) return;
           drawn = true;
-          render();
+          // Start the scan from here rather than from the observer. Whichever path drew the panels —
+          // the observer, or the timeout backstop when a backgrounded tab delivers no intersection
+          // callbacks — motion begins as soon as there is art to move. The observer still pauses it
+          // when the section scrolls away; it just no longer owns starting it.
+          render().then(() => setMotion(true));
         }
-        new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && once()), {
-          threshold: 0.05,
-        }).observe(grid);
+        new IntersectionObserver(
+          (es) =>
+            es.forEach((e) => {
+              if (e.isIntersecting) once();
+              // Nothing animates off screen: four 11k-character text nodes are not worth a frame
+              // budget nobody is looking at. Only ever pauses/resumes — starting is once()'s job.
+              if (drawn) setMotion(e.isIntersecting);
+            }),
+          { threshold: 0.05 },
+        ).observe(grid);
         // Backstop: a backgrounded tab does not deliver intersection callbacks, and without this the
         // panels would sit on "reading the ledger…" for as long as the tab stays hidden.
         setTimeout(once, 4000);
