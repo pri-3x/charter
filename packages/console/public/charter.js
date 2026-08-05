@@ -127,9 +127,15 @@ const WHY = {
   "R1-refund-small": "small enough to allow automatically",
   "R2-refund-large": "too big to allow without a person",
   "R3-no-deletes": "agents may never delete records",
-  "R4-email-rate": "email limit",
-  "R5-refund-velocity": "too much refunded in 24 hours",
-  "R6-payout-small": "small payout rule",
+  "R4-email-rate": { ALLOW: "inside its email limit", DENY: "over its email limit" },
+  // Verdict-aware. This rule ALLOWs while the window is clear and only bites once it is not, so a
+  // single phrase made the console print "Allowed - too much refunded in 24 hours".
+  "R5-refund-velocity": {
+    ALLOW: "inside its refund limit for the day",
+    ESCALATE: "too much refunded in 24 hours",
+    DENY: "too much refunded in 24 hours",
+  },
+  "R6-payout-small": { ALLOW: "within the payout ceiling", ESCALATE: "above the payout ceiling", DENY: "above the payout ceiling" },
   "R7-lookup-allow": "just reading, nothing changes",
   "R8-update-allow": "field update",
   "authority.forbidden_operation": "the person responsible forbade this",
@@ -145,7 +151,18 @@ const WHY = {
   "defaults.unknown_agent": "this agent is not in the rules yet",
   no_active_policy: "no rules are live",
 };
-const why = (id) => WHY[id] || id || "";
+/**
+ * Plain English for a rule id. Some rules decide more than one way — a velocity rule ALLOWs until the
+ * window is breached — so those map to an object keyed by verdict. Without the verdict the console
+ * printed "Allowed" beside "too much refunded in 24 hours", which is a contradiction on screen and
+ * exactly the sort of thing that makes a reader distrust the rest of the page.
+ */
+const why = (id, verdict) => {
+  const w = WHY[id];
+  if (!w) return id || "";
+  if (typeof w === "string") return w;
+  return w[verdict] ?? w.DENY ?? w.ALLOW ?? id ?? "";
+};
 
 const DID = {
   refund: "refund money",
@@ -446,7 +463,7 @@ async function ask(overrides = {}) {
       <div class="row" style="justify-content:space-between">
         <div>
           <div style="font-size:1.05rem;font-weight:600">${badge(data.verdict)} &nbsp;${esc(did(tool))}${rupees > 0 ? " · " + money(Math.round(rupees * 100)) : ""}</div>
-          <p class="muted small" style="margin-top:6px">${esc(why(data.rule_id))}</p>
+          <p class="muted small" style="margin-top:6px">${esc(why(data.rule_id, data.verdict))}</p>
         </div>
       </div>
       ${data.hold_id ? `<p class="small" style="margin-top:8px">Nothing has happened yet. It stays frozen until a person decides — see below.</p>` : ""}
@@ -470,7 +487,7 @@ function feedRow(p, fresh) {
     <td>${esc(p.kind === "VERDICT" ? did(p.action?.tool) : EVENT[p.kind] || p.kind)}</td>
     <td class="num">${amount !== undefined ? money(amount, p.action?.params?.currency) : ""}</td>
     <td>${p.kind === "VERDICT" ? badge(p.verdict) : ""}</td>
-    <td class="muted small">${esc(p.kind === "VERDICT" ? why(p.rule_id) : "")}</td>
+    <td class="muted small">${esc(p.kind === "VERDICT" ? why(p.rule_id, p.verdict) : "")}</td>
   </tr>`;
 }
 
@@ -510,7 +527,7 @@ function showEntry(seq) {
         ? `<p class="muted small" style="margin-top:12px">Charter checked:</p>
            <ul class="plain small">
              ${checks.map((c) => `<li>${c.ok ? "✅" : "❌"} ${esc(c.check.replace(/_/g, " "))} — ${esc(c.why)}</li>`).join("")}
-             ${matched.map((r) => `<li>📋 rule ${esc(r.rule_id)} — ${esc(why(r.rule_id))}</li>`).join("")}
+             ${matched.map((r) => `<li>📋 rule ${esc(r.rule_id)} — ${esc(why(r.rule_id, r.verdict))}</li>`).join("")}
            </ul>`
         : ""}
       <details style="margin-top:10px"><summary>Fingerprint</summary>
@@ -537,7 +554,7 @@ async function loadPending() {
         <div class="row" style="justify-content:space-between">
           <div>
             <h3>${esc(did(e.action?.tool))} ${e.action?.params?.amount !== undefined ? money(e.action.params.amount, e.action.params.currency) : ""}</h3>
-            <p class="muted small" style="margin-top:2px">${esc(agents.find((a) => a.id === e.agent?.id)?.name || e.agent?.id)} · ${esc(why(e.rule_id))}</p>
+            <p class="muted small" style="margin-top:2px">${esc(agents.find((a) => a.id === e.agent?.id)?.name || e.agent?.id)} · ${esc(why(e.rule_id, e.verdict))}</p>
           </div>
           ${badge("ESCALATE")}
         </div>
