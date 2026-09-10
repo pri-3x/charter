@@ -7,6 +7,8 @@ export interface GateConfig {
   signingKeyPath?: string;
   anchorsLogPath: string;
   checkpointIntervalMs: number;
+  /** Agent key the public demo endpoints act as. Absent ⇒ those endpoints answer 503. */
+  demoAgentKey?: string;
 }
 
 /** Read + validate gate config from the environment. Fails closed if required values are missing. */
@@ -23,5 +25,6 @@ export function loadConfig(): GateConfig {
     signingKeyPath: process.env.CHARTER_SIGNING_KEY_PATH,
     anchorsLogPath: process.env.ANCHORS_LOG_PATH ?? "./anchors.log",
     checkpointIntervalMs: Number(process.env.CHECKPOINT_INTERVAL_MS ?? 300000),
+    ...(process.env.CHARTER_DEMO_AGENT_KEY ? { demoAgentKey: process.env.CHARTER_DEMO_AGENT_KEY } : {}),
   };
 }

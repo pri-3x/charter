@@ -16,6 +16,7 @@ async function main(): Promise<void> {
     pool,
     adminKey: config.adminKey,
     anchorsLogPath: config.anchorsLogPath,
+    ...(config.demoAgentKey ? { demoAgentKey: config.demoAgentKey } : {}),
   });
 
   // Fail-closed expiry sweeper (D9). Runs in the gate process since it writes ledger entries.

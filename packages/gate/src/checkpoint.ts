@@ -11,7 +11,15 @@ export interface Signer {
 }
 
 export function loadSigner(pemPath: string): Signer {
-  const key = createPrivateKey(readFileSync(pemPath, "utf8"));
+  return signerFromPem(readFileSync(pemPath, "utf8"));
+}
+
+/**
+ * Signer from the PEM itself rather than a path. Serverless hosts have no writable filesystem and no
+ * place to put a key file, so there the private key arrives as an environment variable instead.
+ */
+export function signerFromPem(pem: string): Signer {
+  const key = createPrivateKey(pem);
   return { sign: (message) => cryptoSign(null, Buffer.from(message, "utf8"), key).toString("base64") };
 }
 

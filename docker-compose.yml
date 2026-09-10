@@ -7,8 +7,10 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: charter
     ports:
-      # Host 5433 to avoid clashing with a local (e.g. Homebrew) Postgres on 5432.
-      - "5433:5432"
+      # Host port is configurable because it is genuinely contended: 5432 is usually a local
+      # Homebrew Postgres, and 5433 tends to be taken by whatever other project got there first.
+      # Set CHARTER_PG_PORT in .env to move it; the default stays 5433.
+      - "${CHARTER_PG_PORT:-5433}:5432"
     volumes:
       - charter-pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro

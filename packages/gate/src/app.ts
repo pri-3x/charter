@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import type { FastifyInstance, FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import fastifyStatic from "@fastify/static";
 import { registerRoutes } from "./routes.js";
+import { registerDemoRoutes } from "./demo.js";
 import { PolicyStore } from "./policy/store.js";
 import type { Pool } from "./db.js";
 
@@ -15,6 +16,13 @@ export interface BuildDeps {
   adminKey: string;
   /** Out-of-band checkpoint record (D5), read by the attestation pack. Defaults to env / ./anchors.log. */
   anchorsLogPath?: string;
+  /**
+   * Agent key the public demo endpoints act as. Supplying it is what turns those endpoints on; with
+   * it absent they report 503 rather than falling back to anything. Never the admin key.
+   */
+  demoAgentKey?: string;
+  /** Tenant the demo reads. Defaults to the single-tenant POC tenant. */
+  demoTenant?: string;
 }
 
 /**
@@ -70,6 +78,16 @@ export async function buildApp(
     adminKey: deps.adminKey,
     store,
     ...(deps.anchorsLogPath ? { anchorsLogPath: deps.anchorsLogPath } : {}),
+  });
+
+  // Public, credential-free demo endpoints. Registered unconditionally so the routes exist and can
+  // answer honestly; without a demo agent key they return 503 rather than 404, which distinguishes
+  // "not configured here" from "no such endpoint".
+  registerDemoRoutes(app, {
+    pool: deps.pool,
+    adminKey: deps.adminKey,
+    ...(deps.demoAgentKey ? { demoAgentKey: deps.demoAgentKey } : {}),
+    tenant: deps.demoTenant ?? "acme-fintech",
   });
   return app;
 }
