@@ -111,6 +111,38 @@ same period reproduces the same hash. `format=html` returns a self-contained pri
 backlog cannot flood the socket. An admin key must travel in the `Authorization` header, so browser
 clients consume this with `fetch` + a stream reader rather than `EventSource`.
 
+## Public demo endpoints (no credential)
+
+Three narrow, rate-limited endpoints that exist so the hosted landing page can show real verdicts to
+anonymous visitors. They do **not** widen the API: each one re-enters an existing route via
+`app.inject()` with the credential and the parameters pinned server-side, so a demo call goes through
+the same auth, idempotency, policy evaluation and ledger commit as any other. All three share one
+per-IP token bucket (20 burst, 0.5/s refill) — a courtesy limit, not a security boundary; the real
+containment is that nothing about the request is caller-controlled beyond a case index.
+
+The alternative would have been publishing `/v1/dev/credentials`, which hands out the admin key and
+every agent key. It stays loopback-only and refuses under `NODE_ENV=production`.
+
+### POST /v1/demo/decide
+Body: `{ "case": <integer 0..6> }` — an index into a fixed list of seven canned actions. Caller
+params are ignored entirely; the gate builds them.
+→ `{ txt, tool, rupees, verdict, rule_id, entry_id, latency_ms }`
+- 400 — `case` is not an integer in range
+- 429 — bucket empty
+- 502 — the underlying `/v1/actions/check` did not return a verdict (fail closed, never dressed up)
+- 503 — `CHARTER_DEMO_AGENT_KEY` is unset on this deployment
+
+### GET /v1/demo/artefacts
+→ `{ chain: [{ entry_hash }], checkpoints: [{ seq_from, seq_to, merkle_root, signature }], counts: { ALLOW, DENY, ESCALATE }, entry_count }`
+
+Only the fields the ASCII panels sample. No payloads, no principals, no rule detail — so it cannot
+become a back door onto ledger contents. Reading the ledger itself still needs the admin key.
+
+### GET /v1/demo/attestation
+→ `text/html` — `/v1/attestation` with the tenant pinned to the demo tenant, the window left at its
+default last-30-days, and `format=html`. HTML only: the JSON form is the machine artefact and stays
+behind the admin key. 429 / 502 as above.
+
 ## GET /healthz
 → `{ "ok": true, "db": true, "active_policy_version": 7 }` — returns 503 with ok:false if the
 DB is unreachable (used by S18).

@@ -2437,7 +2437,7 @@
       };
       const tally = { ALLOW: 0, ESCALATE: 0, DENY: 0 };
 
-      let creds = null;
+      let liveGate = null;
       let running = false;
       let seen = 0;
       let onscreen = true;
@@ -2473,15 +2473,22 @@
       const clock = () => new Date().toTimeString().slice(0, 8) + "." + String(Date.now() % 1000).padStart(3, "0");
       const money = (r) => (r > 0 ? "₹" + r.toLocaleString("en-IN") : "—");
 
-      async function loadCreds() {
+      /**
+       * Is a live gate reachable? Probes the public demo endpoint, which needs no credential at all.
+       * The previous version read /v1/dev/credentials, which returns the admin key and every agent
+       * key and is loopback-gated for exactly that reason. This page now never holds a credential:
+       * the server decides, and the browser only ever names a case by index.
+       */
+      async function probeGate() {
         try {
-          const r = await fetch("/v1/dev/credentials");
-          if (!r.ok) return null;
-          const d = await r.json();
-          const id = d.agents && (d.agents["refunds-agent"] ? "refunds-agent" : Object.keys(d.agents)[0]);
-          return id ? { id, key: d.agents[id], admin: d.admin_key } : null;
+          const h = await fetch("/healthz", { cache: "no-store" });
+          if (!h.ok) return false;
+          // /healthz being up is not enough — the demo endpoints are separately configured and
+          // answer 503 without their key, so ask one of them something harmless.
+          const d = await fetch("/v1/demo/artefacts", { cache: "no-store" });
+          return d.ok;
         } catch {
-          return null;
+          return false;
         }
       }
 
@@ -2493,27 +2500,12 @@
           await wait(RM ? 0 : Math.min(400, 90 + (rec.latency_ms || 10)));
           return rec;
         }
-        const params = { currency: "INR" };
-        if (c.rupees > 0) params.amount = c.rupees * 100;
-        if (c.tool === "lookup_order") params.order_id = "ORD-4471";
-        if (c.tool === "send_email") params.to = "customer@example.com";
-        if (c.tool === "delete_record") {
-          params.record_id = "CUST-1";
-          params.record_type = "customer";
-        }
-        const res = await fetch("/v1/actions/check", {
+        // Live: name the case and nothing else. The gate holds the agent key, runs the canned action
+        // through its own /v1/actions/check, and returns the verdict it actually committed.
+        const res = await fetch("/v1/demo/decide", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + creds.key,
-            "Idempotency-Key": "flow-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
-          },
-          body: JSON.stringify({
-            tool: c.tool,
-            params,
-            principal: "user:visitor-" + Math.random().toString(36).slice(2, 7) + "@example.com",
-            context: { reasoning: "Asked from the Charter home page." },
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ case: i % CASES.length }),
         });
         if (!res.ok) throw new Error(String(res.status));
         return res.json();
@@ -2570,12 +2562,12 @@
        * the off-screen backstop rendered exactly one row and then stopped on `onscreen`.
        */
       async function resolveMode() {
-        if (creds === null) creds = await loadCreds();
-        if (!creds && replay === null) replay = (await loadReplay()) ?? false;
+        if (liveGate === null) liveGate = (await probeGate()) || false;
+        if (!liveGate && replay === null) replay = (await loadReplay()) ?? false;
 
-        if (creds) {
+        if (liveGate) {
           lDot.classList.remove("off", "rec");
-          lHead.textContent = "Live · real calls to the gate on this machine";
+          lHead.textContent = "Live · every row below is a real call to the gate";
         } else if (replay) {
           lDot.classList.remove("off");
           lDot.classList.add("rec");
@@ -2585,7 +2577,7 @@
           lDot.classList.add("off");
           lHead.textContent = "Static copy — run Charter locally and this decides for real";
         }
-        return !!creds || !!replay;
+        return !!liveGate || !!replay;
       }
 
       async function loop() {
@@ -2597,13 +2589,15 @@
           return;
         }
 
-        const seq = replay && !creds ? replay.rows : CASES;
+        const seq = replay && !liveGate ? replay.rows : CASES;
         while (onscreen && seen < 12) {
           try {
             await pass(seq[seen % seq.length], seen);
           } catch {
-            creds = await loadCreds(); // usually a key rotated by a db reset
-            if (!creds) break;
+            // A blip or a rate limit should not silently switch the section to replay mid-run;
+            // re-probe and stop if the gate has genuinely gone.
+            liveGate = (await probeGate()) || false;
+            if (!liveGate) break;
           }
           seen++;
         }
@@ -2611,7 +2605,7 @@
         if (seen >= 12) {
           // The completion line replaces the header, so it has to carry the label too — otherwise the
           // one persistent "this is a replay" marker in this section disappears at the end of the run.
-          const tail = replay && !creds ? " · replay of a real run" : "";
+          const tail = replay && !liveGate ? " · replay of a real run" : "";
           lHead.textContent = `That is the whole product — ${tally.ALLOW} allowed, ${tally.ESCALATE} to a person, ${tally.DENY} blocked${tail}`;
           const again = document.getElementById("again");
           again.innerHTML = `<button id="againBtn" style="height:26px;font-size:10px">Run it again</button>`;
@@ -2642,7 +2636,7 @@
         // has already played than an empty frame. The LIVE path deliberately gets no such backstop:
         // every row there is a real call that writes a real ledger entry, so it stays gated on
         // someone actually looking at it.
-        if (usable && !creds && replay) {
+        if (usable && !liveGate && replay) {
           setTimeout(() => {
             if (seen === 0 && !running) {
               onscreen = true;
@@ -2655,26 +2649,28 @@
       /* ------------------------------------------------------- the compliance report (the real one) */
       document.getElementById("reportBtn")?.addEventListener("click", async () => {
         const rn = document.getElementById("reportNote");
-        rn.textContent = "building the report…";
-        if (creds === null) creds = await loadCreds();
-        if (!creds?.admin) {
-          rn.textContent = "available when Charter runs locally";
+        // /v1/attestation itself stays admin-only. /v1/demo/attestation is the same route with the
+        // tenant and the window pinned server-side, so this page can hand over the real artefact
+        // without ever holding the admin key.
+        if (liveGate) {
+          // Opened synchronously, straight off the click: awaiting first and then calling open()
+          // is what popup blockers exist to stop.
+          const w = open("/v1/demo/attestation", "_blank");
+          rn.textContent = w
+            ? "opened in a new tab — that is what an auditor receives"
+            : "allow pop-ups, or open /v1/demo/attestation directly";
           return;
         }
-        const to = new Date().toISOString();
-        const from = new Date(Date.now() - 30 * 86400000).toISOString();
+        rn.textContent = "building the report…";
         try {
-          const r = await fetch(
-            `/v1/attestation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=html`,
-            { headers: { Authorization: "Bearer " + creds.admin } },
-          );
+          const r = await fetch("/v1/demo/attestation", { cache: "no-store" });
           if (!r.ok) throw new Error(String(r.status));
           const url = URL.createObjectURL(new Blob([await r.text()], { type: "text/html" }));
           open(url, "_blank");
           setTimeout(() => URL.revokeObjectURL(url), 60000);
           rn.textContent = "opened in a new tab — that is what an auditor receives";
-        } catch (e) {
-          rn.textContent = "could not build the report (" + e.message + ")";
+        } catch {
+          rn.textContent = "available when Charter has a gate behind it — try `npm run demo` locally";
         }
       });
 
@@ -3004,30 +3000,29 @@
         }
 
         async function render() {
-          const c = await loadCreds();
           let entries = [];
           let checkpoints = [];
           let counts = { ALLOW: 0, DENY: 0, ESCALATE: 0 };
           let recorded = false;
 
-          if (c?.admin) {
-            const auth = { Authorization: "Bearer " + c.admin };
-            const q = "tenant=acme-fintech";
-            try {
-              const [le, cs] = await Promise.all([
-                fetch("/v1/ledger?" + q + "&limit=400", { headers: auth }).then((r) => r.json()),
-                fetch("/v1/ledger/checkpoints?" + q, { headers: auth }).then((r) => r.json()),
-              ]);
-              entries = le.entries || [];
-              checkpoints = cs.checkpoints || [];
-            } catch {
-              unavailable("could not read the ledger");
-              return;
-            }
-            for (const e of entries) if (e.verdict && counts[e.verdict] !== undefined) counts[e.verdict]++;
+          // The live read goes through /v1/demo/artefacts, which returns hashes, checkpoints and
+          // verdict counts and nothing else. Reading the ledger itself needs the admin key, and this
+          // page holds no credential — the shapes below only ever needed the hashes anyway.
+          let live = null;
+          try {
+            const r = await fetch("/v1/demo/artefacts", { cache: "no-store" });
+            if (r.ok) live = await r.json();
+          } catch {
+            /* fall through to the recorded chain */
+          }
+
+          if (live) {
+            entries = live.chain || [];
+            checkpoints = live.checkpoints || [];
+            counts = live.counts || counts;
           } else {
-            // Hosted with no gate: draw the same shapes from the recorded chain and checkpoint. The
-            // hashes and the Merkle root are the real ones, so the silhouettes are real silhouettes.
+            // No gate behind this page: draw the same shapes from the recorded chain and checkpoint.
+            // The hashes and the Merkle root are the real ones, so the silhouettes are real too.
             const rp = await loadReplay();
             if (!rp) {
               unavailable("nothing behind this page — run Charter locally to draw it");

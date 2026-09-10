@@ -17,6 +17,7 @@ import type { Pool } from "./db.js";
  *                            /v1/actions/check route, in process, holding the agent key server-side
  *   GET  /v1/demo/artefacts  entry hashes, the latest checkpoints and verdict counts — the exact
  *                            fields the ASCII panels draw, and nothing else
+ *   GET  /v1/demo/attestation  the HTML evidence pack for the demo tenant's last 30 days
  *
  * `decide` re-enters the real route via app.inject() rather than reimplementing anything, so a demo
  * verdict goes through the same auth, idempotency, policy evaluation and ledger commit as any other
@@ -84,7 +85,7 @@ export interface DemoDeps {
 }
 
 export function registerDemoRoutes(app: FastifyInstance, deps: DemoDeps): void {
-  const { pool, demoAgentKey, tenant } = deps;
+  const { pool, adminKey, demoAgentKey, tenant } = deps;
 
   app.post<{ Body: { case?: number } }>("/v1/demo/decide", async (req, reply) => {
     if (!demoAgentKey) {
@@ -171,5 +172,35 @@ export function registerDemoRoutes(app: FastifyInstance, deps: DemoDeps): void {
       counts: tally,
       entry_count: chain.rowCount ?? 0,
     });
+  });
+
+  /**
+   * The evidence pack, for the demo tenant and nobody else.
+   *
+   * /v1/attestation is admin-only and stays that way. This wraps it with the tenant and the window
+   * pinned server-side, so a visitor can open the artefact an auditor receives without the page ever
+   * holding the admin key — and cannot point it at another tenant, another window, or another agent.
+   * The pack contains hashes, verdicts, rule ids and the public checkpoint signatures for traffic the
+   * demo itself generated; there is nothing in it that is not already in /v1/demo/artefacts or on the
+   * page. HTML only: the JSON form is the machine artefact and belongs behind the admin key.
+   */
+  app.get("/v1/demo/attestation", async (req, reply) => {
+    if (!takeToken(req.ip ?? "unknown")) {
+      return reply.code(429).send({ error: "too many demo requests — try again shortly" });
+    }
+    // Same re-entry trick as /v1/demo/decide: the real route, with the credential held server-side.
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/attestation?tenant=${encodeURIComponent(tenant)}&format=html`,
+      headers: { authorization: `Bearer ${adminKey}` },
+    });
+    if (res.statusCode !== 200) {
+      return reply.code(502).send({ error: "could not build the pack", status: res.statusCode });
+    }
+    return reply
+      .code(200)
+      .header("content-type", "text/html; charset=utf-8")
+      .header("cache-control", "no-store")
+      .send(res.body);
   });
 }

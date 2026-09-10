@@ -1,5 +1,51 @@
 # PROGRESS.md
 
+## Hosted gate — public demo endpoints, serverless entrypoint  ✅ (2026-09-10)
+
+**Built.** The landing page was hosted with nothing behind it: `/v1/*` 404'd, so every live surface
+fell back to `replay.json` and honestly labelled itself "recorded". This makes the hosted page
+genuinely live without ever putting a credential in a browser.
+
+- `packages/gate/src/demo.ts` — three public endpoints, documented in `docs/API.md`.
+  `POST /v1/demo/decide` takes only a case index into a fixed seven-action list and re-enters the
+  real `/v1/actions/check` via `app.inject()` with the agent key held server-side.
+  `GET /v1/demo/artefacts` returns entry hashes, checkpoints and verdict counts — exactly the fields
+  the ASCII panels sample, nothing more. `GET /v1/demo/attestation` wraps `/v1/attestation` with the
+  tenant and window pinned, HTML only. One per-IP token bucket across all three (20 burst, 0.5/s).
+- `packages/console/public/landing.html` — the live path no longer touches `/v1/dev/credentials`.
+  `loadCreds()` is gone, replaced by `probeGate()`, which asks `/healthz` and then the demo endpoint
+  (health alone is not enough: the demo endpoints answer 503 without their key). `decide()` POSTs a
+  case index; `render()` reads `/v1/demo/artefacts`; the "Open a real report" button opens
+  `/v1/demo/attestation` synchronously off the click, since awaiting first and then calling `open()`
+  is what popup blockers exist to stop. The `creds` variable became `liveGate` — it is a boolean flag
+  now, and the old name claimed something untrue about the page.
+- `packages/gate/src/serverless.ts` + `api/{index,cron/holds,cron/checkpoint}.ts` — a cached app over
+  a module-level pool, plus `sweepHolds()` / `sealCheckpoint()` for Vercel cron. `signerFromPem()`
+  added to `checkpoint.ts` so the signing key can arrive as an env string instead of a file path.
+- `scripts/build-api.mjs` — esbuild bundle to `dist-api/gate.mjs` (~2.3 MB). Needs a `createRequire`
+  banner: Fastify and avvio are CJS and die on "Dynamic require of node:events is not supported".
+- `vercel.json` — build runs both bundlers, `/healthz` and `/v1/:path*` rewrite to the function,
+  crons at 5 and 15 minutes, `no-store` on everything under `/v1/`.
+
+**Verified.** Live path against a real gate on :8090 — header resolves to "Live", nine rows of real
+verdicts including an ESCALATE that resolved through the Telegram hold ("finance-lead approved"),
+tally 7/2/2, all four panels drawn from live hashes with a real Merkle root and Ed25519 prefix, and
+the report button serving a 27 KB pack with no credential anywhere in it. No-gate path against
+`dist-web` on a plain static server — amber dot, "Real verdicts · recorded Jul 31, 2026", captions
+carrying "· from a real run". `npm test` 99/99, `tsc -b` clean.
+
+**Deviations.** Two degradations are inherent to serverless and are named in comments where they
+apply, not papered over: the anchors log does not exist on a read-only filesystem, and hold TTL is
+enforced to cron granularity (5 min) rather than continuously. The rate limiter is per-instance, so
+the nominal rate is a floor, not a ceiling — recorded in `demo.ts` along with why the structural
+containment (fixed case list, small agent budget) is what actually holds.
+
+**Left.** Provision managed Postgres and set `DATABASE_URL`, `CHARTER_ADMIN_KEY`, `CRON_SECRET`,
+`CHARTER_SIGNING_KEY_PEM`, `CHARTER_DEMO_AGENT_KEY` in Vercel. `checkPolicy` still accepts a policy
+with an uncovered amount band (found by writing one: tightening a ceiling to `lte: 400000` left
+400001–500000 matched by no rule, and requests fell through to the velocity rule) — it should reject
+coverage gaps at activation.
+
 ## Public site — domain, mark, waitlist  ✅ (2026-08-03)
 
 Front-end and deployment only. No gate, SDK, policy or schema code touched.

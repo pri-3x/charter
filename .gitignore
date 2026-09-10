@@ -13,3 +13,4 @@ demo-attestation.html
 .DS_Store
 dist-web/
 media/
+dist-api/
