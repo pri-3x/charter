@@ -862,17 +862,66 @@ async function loadPolicy() {
   draftId = null;
 }
 
+/** Money in paise → the rupee figure an operator actually thinks in. */
+function paise(n) {
+  return "\u20b9" + (n / 100).toLocaleString("en-IN");
+}
+
+/**
+ * Describe one coverage gap in the terms the person editing the policy is thinking in. `band` comes
+ * back as raw minor units ("400001..500000") because the gate has no idea which params are money;
+ * params.amount always is, so convert that one and leave anything else alone.
+ */
+function gapLine(g) {
+  const money = g.param === "params.amount";
+  const band = money
+    ? g.from === null
+      ? `up to ${paise(g.to)}`
+      : g.to === null
+        ? `${paise(g.from)} and above`
+        : `${paise(g.from)} to ${paise(g.to)}`
+    : g.band;
+  const verdict = { ALLOW: "be ALLOWED", DENY: "be denied", ESCALATE: "go to a person" }[g.verdict];
+  return `<code>${esc(g.agent)}</code> calling <code>${esc(g.tool)}</code> for ${esc(band)} — no rule of yours covers it, so it would ${verdict} (decided by <code>${esc(g.decided_by)}</code>)`;
+}
+
 async function checkPolicy() {
   const { status, data } = await adminApi("/v1/policies", { method: "POST", body: { yaml: $("policyYaml").value } });
   if (status !== 200) {
     draftId = null;
     $("policyActivate").disabled = true;
-    $("policyResult").innerHTML = `<p style="color:var(--red)">${esc(data?.error || "not valid")} — nothing changed.</p>`;
+    // A coverage refusal is not a typo — the YAML is valid and every rule is fine on its own. Say
+    // which band is uncovered and what would happen to it, or the operator has nothing to act on.
+    const gaps = data?.coverage_gaps;
+    if (gaps?.length) {
+      $("policyResult").innerHTML =
+        `<p style="color:var(--deny)"><b>Not activated — this would let money through.</b></p>` +
+        `<p class="small">Your rules leave ${gaps.length === 1 ? "a gap" : gaps.length + " gaps"} that a limit rule would answer with ALLOW. A limit rule is meant to cap what is already permitted, not to permit it:</p>` +
+        `<ul class="small">${gaps.map((g) => `<li>${gapLine(g)}</li>`).join("")}</ul>` +
+        `<p class="small">Extend a rule to cover the band, and check again.</p>`;
+      return;
+    }
+    $("policyResult").innerHTML = `<p style="color:var(--deny)">${esc(data?.error || "not valid")} — nothing changed.</p>`;
     return;
   }
   draftId = data.draft_id;
   $("policyActivate").disabled = false;
-  $("policyResult").innerHTML = `<p class="small">Looks fine: ${Object.keys(data.parsed.agents).length} agents, ${data.parsed.rules.length} rules. Nothing is live until you press the blue button.</p>`;
+
+  // Gaps that land on DENY or a hold do not block: that is the fail-closed direction, and it is
+  // often deliberate. Still worth showing — it is the part a list of rules cannot tell you.
+  const gaps = data.coverage?.gaps ?? [];
+  const skipped = data.coverage?.skipped ?? [];
+  let note = `<p class="small">Looks fine: ${Object.keys(data.parsed.agents).length} agents, ${data.parsed.rules.length} rules. Nothing is live until you press the blue button.</p>`;
+  if (gaps.length) {
+    note +=
+      `<p class="small"><span class="badge badge-amber">worth a look</span> ${gaps.length === 1 ? "One action is" : gaps.length + " actions are"} covered by no rule of yours. ` +
+      `Nothing unsafe — ${gaps.length === 1 ? "it is" : "they are"} refused rather than allowed — but check ${gaps.length === 1 ? "it is" : "they are"} what you meant:</p>` +
+      `<ul class="small">${gaps.map((g) => `<li>${gapLine(g)}</li>`).join("")}</ul>`;
+  }
+  if (skipped.length) {
+    note += `<p class="small" style="opacity:.7">${skipped.length} agent/tool pair${skipped.length === 1 ? "" : "s"} could not be checked exactly (${esc(skipped[0].reason.split(" \u2014 ")[0].split(";")[0])}${skipped.length > 1 ? ", and others" : ""}).</p>`;
+  }
+  $("policyResult").innerHTML = note;
 }
 
 async function makeLive() {

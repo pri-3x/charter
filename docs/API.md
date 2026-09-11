@@ -41,10 +41,25 @@ nothing to the chain except an app log — keep chain semantics simple; test S8 
 and that hold stays PENDING).
 
 ## POST /v1/policies   (admin)
-Body: `{ "yaml": "<policy document>" }` → validates, stores draft →
-`{ "draft_id", "parsed": {...} }`.
+Body: `{ "yaml": "<policy document>" }` → validates, checks coverage, stores draft →
+`{ "draft_id", "parsed": {...}, "coverage": { "gaps": [...], "skipped": [...] } }`.
+
+`coverage` reports action bands no *verdict* rule covers, with the verdict the gate would actually
+return for them: `{ agent, tool, param, from, to, band, verdict, decided_by }`. Gaps that land on
+DENY or ESCALATE are informational — that is the fail-closed direction. `skipped` names the
+agent/tool pairs the analysis could not decide exactly, with the reason, so an unanalysable policy
+is visibly unanalysed rather than silently passed.
+
+**400** when a gap would be **ALLOWED** — an uncovered band that a `limit` guard answers with its
+non-breach verdict, which under SPEC 3.3 is `rule.verdict ?? ALLOW`. Body:
+`{ "error": "...", "coverage_gaps": [ ... ] }`. A limit rule is meant to cap what is already
+permitted, never to permit it, so this is refused rather than warned about.
+
 ## POST /v1/policies/:draft_id/activate   (admin)
 → `{ "version": 8, "doc_hash": "sha256:...", "activated_entry_id": "01J..." }`
+Re-runs the coverage check against the stored draft and returns the same **400** on a fail-open
+policy — activation is the moment the policy starts deciding, so it is re-checked there even though
+`POST /v1/policies` already refused it.
 
 ## GET /v1/ledger?tenant=...&kind=&tool=&verdict=&from_seq=&limit=   (admin)
 → `{ "entries": [ <full payloads> ], "next_from_seq": 123 }` (seq ascending, limit ≤ 500)

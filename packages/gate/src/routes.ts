@@ -21,6 +21,7 @@ import { fetchUsages, applyConsumption } from "./policy/limits.js";
 import { createHold } from "./policy/holds.js";
 import { createDraft, activateDraft, DraftNotFoundError } from "./policy/activate.js";
 import { PolicyValidationError } from "./policy/schema.js";
+import { PolicyCoverageError } from "./policy/coverage.js";
 import { decideHold } from "./holds-resolve.js";
 import { suspendAgent } from "./suspend.js";
 import { leafFromEntryHash, merkleRootHex, merkleProof } from "./merkle.js";
@@ -714,9 +715,20 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
       return reply.code(400).send({ error: "invalid request", details: parsed.error.issues });
     }
     try {
-      const { draftId, parsed: doc } = await createDraft(pool, parsed.data.yaml);
-      return reply.code(200).send({ draft_id: draftId, parsed: doc });
+      const { draftId, parsed: doc, coverage } = await createDraft(pool, parsed.data.yaml);
+      return reply.code(200).send({
+        draft_id: draftId,
+        parsed: doc,
+        // Fail-closed gaps and unanalysable pairs. Not errors — reported so an operator sees what
+        // the policy does NOT say, which is the part no rule listing can show them.
+        coverage: { gaps: coverage.gaps, skipped: coverage.skipped },
+      });
     } catch (err) {
+      if (err instanceof PolicyCoverageError) {
+        return reply
+          .code(400)
+          .send({ error: err.message, coverage_gaps: err.gaps });
+      }
       if (err instanceof PolicyValidationError) {
         return reply.code(400).send({ error: "policy validation failed", details: err.issues });
       }
@@ -743,6 +755,9 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
       } catch (err) {
         if (err instanceof DraftNotFoundError) {
           return reply.code(404).send({ error: err.message });
+        }
+        if (err instanceof PolicyCoverageError) {
+          return reply.code(400).send({ error: err.message, coverage_gaps: err.gaps });
         }
         throw err;
       }

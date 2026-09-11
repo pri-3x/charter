@@ -650,3 +650,84 @@ None contradict DECISIONS D1–D15. Interim scaffolding choices, all replaced in
   above as the fail-closed choice.
 - **Idempotency-Key required always:** M1 returns 400 if the header is missing on `/check` (per D10). Any
   desire for a grace path? Assumed no (fail closed).
+
+---
+
+## Policy coverage checking (post-M5)
+
+### The defect
+
+SPEC 3.3 gives a matching `limit` rule the verdict `breach ? verdict_on_breach : (rule.verdict ?? ALLOW)`.
+Limit rules are cross-cutting guards scoped to a tool, not to a parameter band — `R5-refund-velocity`
+matches *every* refund. So tightening `R1-refund-small` from `lte: 500000` to `lte: 400000`, while
+`R2-refund-large` still starts at `gt: 500000`, leaves 400001–500000 matched by no verdict rule at all.
+The action falls through to R5, does not breach the daily sum, and is **ALLOWED with
+`rule_id: R5-refund-velocity`** — a velocity guard silently becomes the thing that authorises the payment.
+
+Reproduced against the real evaluator before any code was written:
+
+```
+  amount=400000  verdict=ALLOW    rule=R1-refund-small     matched=[R1-refund-small, R5-refund-velocity]
+  amount=450000  verdict=ALLOW    rule=R5-refund-velocity  matched=[R5-refund-velocity]
+  amount=500000  verdict=ALLOW    rule=R5-refund-velocity  matched=[R5-refund-velocity]
+  amount=500001  verdict=ESCALATE rule=R2-refund-large     matched=[R2-refund-large, R5-refund-velocity]
+```
+
+The policy parses, the zod schema is satisfied, and every rule is individually correct. Only the
+*union* is wrong, which is why nothing caught it.
+
+### What was built
+
+`packages/gate/src/policy/coverage.ts` — `analyseCoverage(doc)`. Per (agent, tool in `allowed_tools`):
+
+- Rules are split the way `matchRules` splits them: a rule with a `limit` is a **guard** (it can never
+  supply the base verdict), anything else is a **verdict rule**.
+- **No verdict rule for the tool ⇒ nothing checked.** The tool is governed entirely by guards, which is
+  a deliberate uniform choice (`send_email` + `R4-email-rate` in the example policy), not a partition
+  with a hole in it. Listed in `skipped` so it is visible rather than silent.
+- Otherwise the verdict rules must cover the whole integer range of whichever param they partition on.
+  Each uncovered band is reported with the verdict the gate would **actually** return, derived the way
+  `resolveVerdict` does: first matching guard's non-breach verdict, else `defaults.unknown_tool`, then
+  the agent's autonomy cap.
+
+A gap whose verdict is ALLOW is fail-open and **refuses activation**. A gap landing on DENY or ESCALATE
+is reported but does not block — that is the fail-closed direction and is often deliberate (nothing in
+the example policy covers payouts above R6's ceiling; DENY is the intended answer).
+
+Checked in `createDraft` *and* `activateDraft`. The second is not redundant: a draft written before this
+check existed is still in the table, and activation is the moment the policy starts deciding.
+
+### Soundness
+
+The analyser only reports a gap it can prove. Anything it cannot decide exactly is put in `skipped` with
+the reason rather than guessed at — a rule conditioned on more than tool + one numeric param, two verdict
+rules partitioning different params, a non-integer or `in`-list bound. Bands are inclusive **integer**
+ranges (amounts are minor units), so `lte: 500` and `gt: 500` are recognised as adjacent with no phantom
+gap between them. The domain is (-∞, ∞), not [0, ∞): a rule floored with `gte: 0` leaves the negative
+side uncovered, and a negative refund is a credit — that is a real finding, and there is a test for it.
+
+### Verification
+
+- `packages/gate/src/policy/coverage.test.ts` — 14 unit tests, including one that cross-checks the
+  report against the evaluator itself (the predicted `verdict` and `decided_by` must equal what
+  `resolveVerdict` returns for the band), so the report cannot drift from the engine it describes.
+- Full unit suite 161 passing; `npm run test:integration` 48 passing from a clean chain, S14/S17
+  activation included. The seed activates `example.acme.yaml` through the checked path.
+- End-to-end against a live gate: the shipped policy and the S14 capped variant are accepted (with the
+  informational payout gap surfaced); the tightened-ceiling policy is refused 400 with 3 gaps, one per
+  agent that can call `refund`.
+
+### Deviations
+
+**None from DECISIONS.md, and none from SPEC 3.3.** Evaluation semantics are untouched — a matching
+guard still yields `rule.verdict ?? ALLOW`. Changing that would have made `send_email` undecidable in
+the example policy, since R4 is the only rule that matches it. The fix is a validation gate in front of
+the engine, not a change to the engine.
+
+New API surface (documented in `docs/API.md`): `POST /v1/policies` gains a `coverage` field in its 200
+body and a 400 carrying `coverage_gaps`; the activate route returns the same 400.
+
+### Environment note
+
+`CHARTER_DEMO_AGENT_KEY` is now documented in `env.example`. It rotates on every `db:reset`; re-read it
+from `.seed/agent-key.json` afterwards or `/v1/demo/*` fails closed with a 502.
