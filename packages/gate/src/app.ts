@@ -5,11 +5,17 @@ import type { FastifyInstance, FastifyError, FastifyReply, FastifyRequest } from
 import fastifyStatic from "@fastify/static";
 import { registerRoutes } from "./routes.js";
 import { registerDemoRoutes } from "./demo.js";
+import { registerCredentialRoutes } from "./credentials/routes.js";
 import { PolicyStore } from "./policy/store.js";
 import type { Pool } from "./db.js";
 
 /** Logger redaction paths — never let raw action params reach the logs (CLAUDE.md / D12). */
-const REDACT_PATHS = ["params", "*.params", "action.params", "req.headers.authorization"];
+const REDACT_PATHS = [
+  "params", "*.params", "action.params", "req.headers.authorization",
+  // Pattern B: the register/rotate body carries a live tool credential, and an error log of a
+  // failed registration is exactly where one would otherwise end up in plaintext, forever.
+  "secret", "*.secret", "body.secret", "req.body.secret",
+];
 
 export interface BuildDeps {
   pool: Pool;
@@ -23,6 +29,14 @@ export interface BuildDeps {
   demoAgentKey?: string;
   /** Tenant the demo reads. Defaults to the single-tenant POC tenant. */
   demoTenant?: string;
+  /**
+   * AES-256 key (raw bytes) sealing Pattern B tool credentials. Absent ⇒ /v1/credentials and
+   * /v1/proxy answer 503. Never defaulted or generated: a gate that invents a key at boot encrypts
+   * happily and then cannot decrypt anything after a restart.
+   */
+  credentialKey?: Buffer;
+  /** Dev/test only: permit http://localhost egress targets. */
+  allowLoopbackEgress?: boolean;
 }
 
 /**
@@ -88,6 +102,17 @@ export async function buildApp(
     adminKey: deps.adminKey,
     ...(deps.demoAgentKey ? { demoAgentKey: deps.demoAgentKey } : {}),
     tenant: deps.demoTenant ?? "acme-fintech",
+  });
+
+  // Pattern B (credential custody). Registered unconditionally for the same reason as the demo
+  // routes: without a key they answer 503, so "not configured here" is distinguishable from
+  // "this build does not have it".
+  registerCredentialRoutes(app, {
+    pool: deps.pool,
+    adminKey: deps.adminKey,
+    ...(deps.credentialKey ? { credentialKey: deps.credentialKey } : {}),
+    ...(deps.allowLoopbackEgress ? { allowLoopbackEgress: deps.allowLoopbackEgress } : {}),
+    defaultTenant: deps.demoTenant ?? "acme-fintech",
   });
   return app;
 }

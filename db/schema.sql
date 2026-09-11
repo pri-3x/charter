@@ -114,6 +114,29 @@ CREATE TABLE ledger_entries (
 CREATE INDEX ledger_kind ON ledger_entries(tenant_id, kind);
 CREATE INDEX ledger_ts   ON ledger_entries(tenant_id, ts);
 
+-- Pattern B credential custody (0003): Charter holds the tool secret so an agent that bypasses the
+-- gate has nothing to bypass it with. The endpoint/method/scheme are ADMIN-registered — if a caller
+-- could name the URL, this would be an SSRF proxy with production credentials attached.
+CREATE TABLE tool_credentials (
+  tenant_id     text NOT NULL REFERENCES tenants(id),
+  tool          text NOT NULL,
+  endpoint_url  text NOT NULL,
+  method        text NOT NULL DEFAULT 'POST'
+                  CHECK (method IN ('GET','POST','PUT','PATCH','DELETE')),
+  auth_scheme   text NOT NULL CHECK (auth_scheme IN ('bearer','header','basic')),
+  auth_header   text,
+  secret_ct     bytea NOT NULL,           -- AES-256-GCM; plaintext never lands in a column or a log
+  secret_iv     bytea NOT NULL,
+  secret_tag    bytea NOT NULL,
+  secret_fp     text  NOT NULL,           -- SHA-256 prefix: identifies the key without revealing it
+  status        text  NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','REVOKED')),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  revoked_at    timestamptz,
+  registered_entry_id text NOT NULL,
+  PRIMARY KEY (tenant_id, tool)
+);
+CREATE INDEX tool_credentials_status ON tool_credentials(tenant_id, status);
+
 -- idempotency cache for /actions/check
 CREATE TABLE idempotency_keys (
   tenant_id  text NOT NULL,
@@ -176,7 +199,7 @@ CREATE TRIGGER checkpoints_no_update BEFORE UPDATE OR DELETE ON checkpoints
 -- CREATE ROLE charter_verifier LOGIN PASSWORD '...';
 GRANT SELECT, INSERT ON ledger_entries, checkpoints TO charter_gate;
 GRANT SELECT, INSERT, UPDATE ON tenants, agents, principals, policies, ledger_seq,
-  holds, limit_counters, idempotency_keys, authorities TO charter_gate;
+  holds, limit_counters, idempotency_keys, authorities, tool_credentials TO charter_gate;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO charter_verifier;
 -- NOTE: no UPDATE/DELETE on ledger_entries/checkpoints for anyone but superuser;
 -- the trigger blocks even superuser unless it disables the trigger (tamper tests do exactly

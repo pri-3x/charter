@@ -5,6 +5,7 @@ export type {
   CheckResponse,
   HoldView,
   GuardOptions,
+  ProxyResponse,
 } from "./client.js";
 export {
   CharterError,

@@ -161,3 +161,53 @@ behind the admin key. 429 / 502 as above.
 ## GET /healthz
 → `{ "ok": true, "db": true, "active_policy_version": 7 }` — returns 503 with ok:false if the
 DB is unreachable (used by S18).
+
+# Credential custody — Pattern B (SPEC §7, D1)
+
+Under Pattern A the agent holds the tool function and therefore its key, so the gate is advisory:
+TEST_PLAN A4 shows an agent that never calls Charter is not governed by it. Pattern B moves the
+secret behind the gate. The agent is given a tool NAME; Charter evaluates the action through the
+same `/v1/actions/check` path and makes the outbound call itself. All of these 503 when
+`CHARTER_CREDENTIAL_KEY` is unset. Pattern A is unchanged and still supported.
+
+## POST /v1/credentials   (admin)
+`{ tenant?, tool, endpoint_url, method?, auth_scheme, auth_header?, secret, by_principal }`
+→ `{ tool, key_fingerprint, rotated, entry_id }` — the secret is never echoed back, on this or any
+other response. Re-registering the same tool rotates in place (one active credential per tool, so
+"which key signed this call?" is never ambiguous); the ledger records the rotation.
+
+`auth_scheme` is `bearer` | `basic` | `header` (the last requires `auth_header`). The endpoint is
+validated at registration: https only (http for loopback in dev), no embedded credentials, and
+never a loopback, private, CGNAT or link-local address.
+
+The secret is sealed with AES-256-GCM, with the egress descriptor bound in as additional
+authenticated data — so editing `endpoint_url` in the database does not redirect the credential, it
+destroys it. Writes a `CREDENTIAL_REGISTERED` entry carrying the fingerprint, never the secret.
+
+## GET /v1/credentials?tenant=   (admin)
+→ `{ credentials: [ { tool, endpoint_url, method, auth_scheme, auth_header?, key_fingerprint,
+status } ] }`. Descriptors only — there is no endpoint that returns a secret.
+
+## POST /v1/credentials/:tool/revoke   (admin)
+`{ by_principal }` → `{ tool, status: "REVOKED", entry_id }` (`CREDENTIAL_REVOKED`). Takes effect on
+the next call, not at a cache expiry. 404 if no active credential.
+
+## POST /v1/proxy/:tool   (agent, Idempotency-Key required)
+`{ params, principal, context? }` → the verdict, and on ALLOW the call has already happened:
+`{ verdict: "ALLOW", entry_id, outcome_entry_id, rule_id, tool_status, tool_response }`.
+DENY and ESCALATE return the verdict and the credential is never touched.
+
+Deliberately absent from the body: url, method, headers. The caller names a tool; an admin decided
+long ago what that means. Otherwise this is an SSRF proxy that attaches production credentials to
+whatever it is pointed at.
+
+The gate writes the `OUTCOME` itself (`via: "proxy"`), with the upstream's reply under `egress` —
+under Pattern B the gate is the only party that knows what actually happened, so the agent cannot
+mis-report it.
+
+## POST /v1/proxy/resume   (agent)
+`{ hold_id }` → same shape as above, once a human has APPROVED the hold.
+
+Takes a hold id and **nothing else**: the params are replayed from the immutable verdict entry, so
+an approval for ₹500 cannot be spent as ₹500,000. 409 if the hold is not APPROVED (PENDING
+included) or if the approval was already executed; 403 if it belongs to another agent.

@@ -43,6 +43,17 @@ export interface GuardOptions {
   conversationRef?: string;
 }
 
+/** What the gate returns once it has made the call for you (Pattern B). */
+export interface ProxyResponse<R = unknown> {
+  verdict: "ALLOW";
+  entry_id: string;
+  outcome_entry_id: string;
+  rule_id?: string;
+  /** HTTP status the upstream tool returned. */
+  tool_status: number;
+  tool_response: R;
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 export class CharterClient {
@@ -121,6 +132,109 @@ export class CharterClient {
     } catch {
       /* swallow: the verdict + hold are already durably recorded */
     }
+  }
+
+  /**
+   * Pattern B: ask the gate to perform the call (SPEC §7, D1).
+   *
+   * The difference from `guard()` is what this client does NOT have. `guard()` takes the real tool
+   * function, which holds the API key — so an agent can always call that function directly and the
+   * gate never hears about it (TEST_PLAN A4). Here there is no function and no key: Charter holds
+   * the credential, evaluates the action, and makes the outbound request itself. Skipping Charter
+   * stops being a policy violation and becomes an impossibility.
+   *
+   *   ALLOW    → the gate has already called the tool; its response is returned
+   *   DENY     → PolicyDeniedError (the tool was never called)
+   *   ESCALATE → poll the hold; on approval the gate executes with the params RECORDED IN THE
+   *              LEDGER, not with anything this client sends afterwards
+   */
+  async proxy<R = unknown>(
+    tool: string,
+    params: Record<string, unknown>,
+    opts: GuardOptions,
+    idempotencyKey?: string,
+  ): Promise<ProxyResponse<R>> {
+    const principal = typeof opts.principal === "function" ? opts.principal() : opts.principal;
+    const reasoning = typeof opts.reasoning === "function" ? opts.reasoning() : opts.reasoning;
+    const body: Record<string, unknown> = { params, principal };
+    if (reasoning || opts.conversationRef) {
+      body.context = {
+        ...(reasoning ? { reasoning } : {}),
+        ...(opts.conversationRef ? { conversation_ref: opts.conversationRef } : {}),
+      };
+    }
+
+    const res = await this.fetchImpl(this.url(`/v1/proxy/${encodeURIComponent(tool)}`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.opts.apiKey}`,
+        "Idempotency-Key": idempotencyKey ?? randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.status !== 200) {
+      let errBody: unknown;
+      try {
+        errBody = await res.json();
+      } catch {
+        /* ignore */
+      }
+      throw new CharterError(`proxy failed with HTTP ${res.status}`, res.status, errBody);
+    }
+
+    // The wire shape is a union: only the ALLOW arm carries a tool response. Intersecting it with
+    // ProxyResponse would narrow `verdict` to "ALLOW" and make the other two arms unreachable.
+    type Wire =
+      | (ProxyResponse<R> & { rule_id: string })
+      | { verdict: "DENY"; entry_id: string; rule_id: string; reason?: string }
+      | { verdict: "ESCALATE"; entry_id: string; rule_id: string; hold_id: string; ttl_minutes?: number };
+    const out = (await res.json()) as Wire;
+
+    if (out.verdict === "DENY") {
+      throw new PolicyDeniedError(out.rule_id, out.reason, out.entry_id);
+    }
+    if (out.verdict === "ESCALATE") {
+      await this.awaitHold(out as unknown as CheckResponse);
+      return this.resume<R>(out.hold_id);
+    }
+    return out;
+  }
+
+  /**
+   * Execute a hold a human has approved. Sends only the hold id on purpose — the gate replays the
+   * params from the verdict entry, so an approval for ₹500 cannot be spent as ₹500,000.
+   */
+  async resume<R = unknown>(holdId: string): Promise<ProxyResponse<R>> {
+    const res = await this.fetchImpl(this.url("/v1/proxy/resume"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.opts.apiKey}`,
+      },
+      body: JSON.stringify({ hold_id: holdId }),
+    });
+    if (res.status !== 200) {
+      let errBody: unknown;
+      try {
+        errBody = await res.json();
+      } catch {
+        /* ignore */
+      }
+      throw new CharterError(`resume failed with HTTP ${res.status}`, res.status, errBody);
+    }
+    return (await res.json()) as ProxyResponse<R>;
+  }
+
+  /**
+   * Pattern B as a drop-in callable, so swapping from `guard()` is a one-line change at the call
+   * site — except that the tool function (and its key) is no longer passed in at all.
+   */
+  custody<A extends Record<string, unknown>, R = unknown>(
+    tool: string,
+    opts: GuardOptions,
+  ): (params: A) => Promise<R> {
+    return async (params: A): Promise<R> => (await this.proxy<R>(tool, params, opts)).tool_response;
   }
 
   /**

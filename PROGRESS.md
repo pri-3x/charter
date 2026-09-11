@@ -731,3 +731,81 @@ body and a 400 carrying `coverage_gaps`; the activate route returns the same 400
 
 `CHARTER_DEMO_AGENT_KEY` is now documented in `env.example`. It rotates on every `db:reset`; re-read it
 from `.seed/agent-key.json` afterwards or `/v1/demo/*` fails closed with a 502.
+
+---
+
+## M7 — Pattern B: credential custody (the A4 fix)
+
+D1 fixed Pattern A (SDK check) as the POC integration and said the proxy/credential-custody tier is
+**v1**, with A4 existing to demonstrate Pattern A's limit — explicitly *not* to be "fixed" in the POC.
+This is that v1 tier. Pattern A is untouched and still supported; A4 remains true of it.
+
+### The hole
+
+`guard(tool, fn, opts)` takes the real tool function, and that function holds the API key. The gate is
+therefore advisory: an agent that simply calls `fn` directly succeeds, and the ledger never hears
+about it. No amount of policy work closes this, because the credential is on the wrong side of the
+gate.
+
+### What changed
+
+The secret moves behind the gate. The agent is handed a tool **name**; Charter stores the credential
+encrypted, evaluates the action, and makes the outbound call itself. The bypass does not become
+logged — it becomes impossible, because the agent has nothing to bypass Charter *with*.
+
+- `db/migrations/0003_credential_custody.sql` — `tool_credentials`, plus `CREDENTIAL_REGISTERED` /
+  `CREDENTIAL_REVOKED` entry kinds. `schema.sql` kept in step.
+- `credentials/crypto.ts` — AES-256-GCM. **The egress descriptor is bound in as AAD**: `endpoint_url`
+  is an ordinary plaintext column, so without this anyone with UPDATE on the row could repoint the
+  destination and the gate would attach the production credential to it. With AAD, editing the URL
+  destroys the credential instead of redirecting it.
+- `credentials/store.ts` — register/rotate/revoke/load. Rotation is an upsert, so there is exactly one
+  active credential per tool and "which key signed this?" is never ambiguous.
+- `credentials/egress.ts` — the outbound call. Refuses non-https, embedded credentials, loopback,
+  RFC1918, CGNAT and link-local (169.254.169.254 is why). `redirect: "manual"` so a 302 cannot carry
+  the credential to a new host, and `redact()` scrubs the secret from anything an upstream echoes back.
+- `credentials/routes.ts` — admin register/list/revoke, plus `POST /v1/proxy/:tool` and
+  `POST /v1/proxy/resume`.
+- SDK: `proxy()`, `resume()`, and `custody(tool, opts)` — a drop-in callable, except the tool function
+  and its key are no longer passed in at all.
+
+### Two design points worth stating
+
+**The proxy re-enters `/v1/actions/check` in process** rather than reimplementing evaluation. There is
+one implementation of authority, policy, limits, holds and the ledger transaction. A proxy verdict is
+not a second opinion, it *is* the verdict.
+
+**`resume` takes a hold id and nothing else.** The params are replayed from the immutable verdict
+entry, never re-read from the caller — otherwise an agent could get ₹500 approved by a human and then
+execute ₹500,000. There is a test for exactly that.
+
+### Bug found by the tests
+
+`writeOutcome` spread the egress detail at the top level of the OUTCOME payload. The upstream's
+`status` (an HTTP code) silently overwrote the entry's own `status` (SUCCESS/FAILURE) — same field
+name, entirely different meaning, and it would have corrupted every OUTCOME consumer including the
+attestation. The upstream reply now lives under `egress`.
+
+### Verification
+
+- 136 unit tests (11 crypto, 12 egress) and 64 integration tests pass, the latter from a clean chain.
+- `tests/integration/m6.custody.test.ts` — 16 tests. A stub upstream records every request it
+  receives, so "the tool was NOT called" is asserted as a fact rather than an absence of logging:
+  DENY calls nothing, ESCALATE calls nothing until approved, a pending hold refuses to resume, an
+  approval executes once, revocation bites on the next call, and the plaintext secret appears in no
+  response, no admin listing, no ledger entry, and nowhere in the database row.
+- `npm run verify` — 106 entries, chain intact with the new kinds present. The verifier shares no code
+  with the gate (D6) and types `kind` as an open string, so it needed no change.
+
+### Deviations
+
+None from DECISIONS. D1 is *advanced*, not overturned: it named Pattern B as v1 and this is v1.
+A4 still holds for Pattern A, which is unchanged — the new suite adds the Pattern B counterpart
+rather than editing A4's expectation.
+
+### Not done
+
+The endpoint host is not resolved before the request, so a hostname resolving to a private address is
+not caught, and pinning the resolved address would be needed to close DNS rebinding properly.
+Registration is admin-only, so the exposure is a misconfigured admin rather than a hostile caller.
+Recorded in `egress.ts` as a named gap rather than papered over.

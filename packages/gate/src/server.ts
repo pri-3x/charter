@@ -5,6 +5,7 @@ import { buildApp } from "./app.js";
 import { expireHolds } from "./holds-resolve.js";
 import { loadSigner, makeAnchorAppender, createPendingCheckpoint } from "./checkpoint.js";
 import { logger } from "./logger.js";
+import { loadCredentialKey } from "./credentials/crypto.js";
 
 const HOLD_SWEEP_INTERVAL_MS = 30_000; // D9: expire past-TTL holds every 30s
 const TENANT = "acme-fintech"; // single-tenant POC
@@ -17,6 +18,10 @@ async function main(): Promise<void> {
     adminKey: config.adminKey,
     anchorsLogPath: config.anchorsLogPath,
     ...(config.demoAgentKey ? { demoAgentKey: config.demoAgentKey } : {}),
+    // Parsed at boot, not per request: a malformed CHARTER_CREDENTIAL_KEY should stop the gate
+    // starting, not surface as a 500 on the first payment.
+    ...(config.credentialKey ? { credentialKey: loadCredentialKey(config.credentialKey) } : {}),
+    ...(config.allowLoopbackEgress ? { allowLoopbackEgress: true } : {}),
   });
 
   // Fail-closed expiry sweeper (D9). Runs in the gate process since it writes ledger entries.

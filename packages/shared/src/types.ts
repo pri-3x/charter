@@ -11,7 +11,11 @@ export type EntryKind =
   | "AGENT_REGISTERED"
   | "AGENT_REINSTATED"
   | "AUTHORITY_GRANTED"
-  | "AUTHORITY_REVOKED";
+  | "AUTHORITY_REVOKED"
+  // Pattern B (credential custody): when Charter began holding a tool's secret, and who installed
+  // or withdrew it. The entries carry the key fingerprint, never the key.
+  | "CREDENTIAL_REGISTERED"
+  | "CREDENTIAL_REVOKED";
 
 export type MaxAutonomy = "ALLOW" | "ESCALATE";
 export type AgentStatus = "ACTIVE" | "SUSPENDED" | "REVOKED";
