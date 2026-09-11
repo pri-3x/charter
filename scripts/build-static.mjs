@@ -194,7 +194,10 @@ console.log(`  seo            ->  canonical + og + json-ld at ${origin}`);
 
 writeFileSync(
   join(out, "sitemap.xml"),
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${abs("/")}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`,
+  // `lastmod` is the one hint here Google actually acts on — changefreq and priority are ignored, but
+  // are cheap and still read by other crawlers. Taken from the landing page's own mtime so it tells
+  // the truth about when the content changed, rather than resetting on every unrelated rebuild.
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${abs("/")}</loc>\n    <lastmod>${new Date(statSync(join(src, "landing.html")).mtime).toISOString().slice(0, 10)}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`,
 );
 console.log("  sitemap.xml    ->  1 url (the console is intentionally excluded)");
 
