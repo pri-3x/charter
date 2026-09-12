@@ -1451,12 +1451,13 @@
             budgets, expiry and forbidden operations enforced before policy is even consulted.
           </p>
         </div>
-        <div class="no">
-          <p class="lab">Not built</p>
+        <div class="yes">
+          <p class="lab">Built</p>
           <p>
-            <b>Credential custody.</b> Today an agent that never calls Charter is not governed by
-            it. The fix is for Charter to hold the payment credential itself and refuse to sign —
-            that is the next thing, and it is not done.
+            <b>Credential custody.</b> Charter holds the payment credential, so the agent is never
+            given one. It asks for a tool by name; Charter checks the action and makes the call
+            itself. An agent that skips Charter no longer gets away with it — it has nothing to pay
+            with.
           </p>
         </div>
         <div class="no">
@@ -1474,8 +1475,8 @@
         <p class="eyebrow" style="justify-content: center"><span class="n">↘</span> Early access</p>
         <h2>Get Charter when it is ready for your agents.</h2>
         <p class="lede" style="color: rgba(242, 240, 234, 0.62)">
-          It is a working prototype today, not a hosted product. Leave an email and you will hear
-          once it can hold a real credential.
+          It holds a real credential today, and it is still a prototype rather than a hosted
+          product. Leave an email and you will hear when you can point it at your own agents.
         </p>
 
         <form class="wait" id="waitForm" novalidate>

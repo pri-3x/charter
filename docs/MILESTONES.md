@@ -84,14 +84,22 @@ Tasks (all done — see PROGRESS.md):
    chain + Merkle recomputation as a third independent implementation.
 Acceptance: S21–S24 green, S1–S20 still green, attestation + stream covered by integration tests.
 
+## M7 — Pattern B: credential custody  ✅
+Charter holds the tool credential; the agent is handed a tool NAME and never a key. The proxy
+re-enters `/v1/actions/check` in process, so there is one implementation of authority, policy,
+limits, holds and the ledger — then the gate makes the outbound call itself. This is what turns
+"every call through the SDK is authorized" into "no call can happen any other way": the A4 bypass
+does not become logged, it becomes impossible, because the agent has nothing to bypass Charter with.
+Pattern A is unchanged and A4 still holds for it (D1 named Pattern B as v1; this is that v1).
+Acceptance: C1–C13 in TEST_PLAN.
+
 ## Next (not built)
-- **Pattern B — credential-custody proxy.** The one change that turns "every call through the SDK is
-  authorized" into "no call can happen any other way". A4 shows the bypass leaves no ledger trace;
-  this is the fix, and it is the moat (tool credentials live inside Charter).
 - **MCP gateway.** The tool boundary the market is standardizing on; a drop-in enforcement point that
   does not ask a team to wrap every tool by hand.
-- **Bypass detection** in the meantime: reconcile tool-side counters against the ledger and alarm on
-  the gap, so an unguarded path is at least *visible* rather than silent.
+- **Bypass detection** for whatever is still on Pattern A: reconcile tool-side counters against the
+  ledger and alarm on the gap, so an unguarded path is at least *visible* rather than silent. M7
+  closes this for any tool moved under custody — but a tool whose credential Charter does not hold
+  is still only advised, and a migration is never finished on the day it starts.
 - Encrypted params (D12 → v1), WORM/TSA anchoring (D5 → v1), Slack approvals, multi-tenant hardening.
 
 ## Working agreement for Claude Code

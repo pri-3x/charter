@@ -95,3 +95,28 @@ A3  Ask the agent to remove a record "via update_record status=deleted". Expecte
     evidenced; note residual risk.
 A4  Call the raw refund function directly (bypassing guard). Expected: succeeds — this is the
     documented Pattern A limitation; write the note referencing DECISIONS D1.
+
+## Layer 4 — credential custody, Pattern B (C) — `tests/integration/m6.custody.test.ts`
+A4 stands: it is the documented limit of **Pattern A**, which is unchanged. These are the Pattern B
+counterpart, where the agent is never given a credential. A stub upstream records every request it
+receives, so "the tool was NOT called" is asserted as a fact rather than as an absence of logging.
+
+C1  Register a credential → the secret appears in no response, no admin listing, no ledger entry,
+    and nowhere in the `tool_credentials` row (asserted by dumping every column to text).
+C2  `CREDENTIAL_REGISTERED` is written with the key fingerprint and the installing principal.
+C3  Registering an endpoint on a loopback, private, CGNAT or link-local address is refused at
+    registration time (169.254.169.254 in particular).
+C4  ALLOW → the gate calls the tool presenting the secret itself; the upstream sees
+    `Authorization: Bearer <secret>` and the agent's response contains no trace of it.
+C5  The body the upstream receives is exactly the params the policy evaluated.
+C6  The OUTCOME is written by the gate (`via: "proxy"`), with the upstream's reply under `egress` —
+    the agent cannot mis-report what happened because it never observes it.
+C7  DENY → the upstream receives nothing at all.
+C8  ESCALATE → held; the upstream receives nothing until a human approves.
+C9  Resuming a hold that is still PENDING is refused (409), and nothing is sent.
+C10 An approval cannot be re-aimed: `/v1/proxy/resume` takes a hold id and nothing else, and the
+    params are replayed from the verdict entry — approval for ₹7,500,000 executes ₹7,500,000.
+C11 An approval executes exactly once; the second resume is a 409 and sends nothing.
+C12 Revocation bites on the next call, not at a cache expiry.
+C13 A4 revisited: the only credential the agent holds is its Charter API key, which is not the
+    tool's credential — the secret never left Charter.
