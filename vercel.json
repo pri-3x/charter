@@ -109,11 +109,11 @@
   "crons": [
     {
       "path": "/api/cron/holds",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/checkpoint",
-      "schedule": "*/15 * * * *"
+      "schedule": "30 3 * * *"
     }
   ]
 }

@@ -192,3 +192,60 @@ describe("S15 — kill switch", () => {
     expect(c.reason).toBe("agent suspended");
   });
 });
+
+/**
+ * Expiry must be a fact about the clock, not about whether the sweeper has run.
+ *
+ * `ttl_at` used to be read only by sweepExpiredHolds, so a hold past its TTL stayed approvable for
+ * as long as that job was behind. On a host that caps cron frequency (Vercel Hobby allows a DAILY
+ * job at most) that quietly turns a 4-hour hold into a 24-hour one, with nothing to tell the
+ * approver that the window had closed.
+ */
+describe("hold expiry is enforced at decision time, not by the sweeper's schedule", () => {
+  // S15 above suspends the agent and the file-level afterAll is what restores it, so anything added
+  // after S15 runs against a suspended agent and sees DENY. Restore it for this block.
+  beforeAll(async () => {
+    await pool.query("UPDATE agents SET status='ACTIVE' WHERE tenant_id=$1 AND id=$2", [
+      seed.tenant,
+      seed.agentId,
+    ]);
+  });
+
+  it("refuses to approve a hold whose TTL has passed, with no sweep in between", async () => {
+    const check = await client.check({
+      tool: "refund",
+      params: { order_id: "O-TTL-1", amount: 600000, currency: "INR" },
+      principal: "user:monty@acme.co",
+    });
+    expect(check.verdict).toBe("ESCALATE");
+    const holdId = check.hold_id!;
+
+    // Age it past its TTL and deliberately do NOT run the sweeper.
+    await pool.query("UPDATE holds SET ttl_at = now() - make_interval(mins => 1) WHERE id = $1", [holdId]);
+    const before = await pool.query<{ status: string }>("SELECT status FROM holds WHERE id = $1", [holdId]);
+    expect(before.rows[0]!.status).toBe("PENDING"); // nothing has swept it
+
+    const res = await decide(holdId, "APPROVED", "user:steven@acme.co");
+    expect(res.statusCode).toBe(409);
+    expect(JSON.stringify(res.json())).toMatch(/expired/i);
+
+    // It must not have been recorded as an approval either.
+    const { rows } = await pool.query<{ payload: { decision?: string } }>(
+      `SELECT payload FROM ledger_entries
+        WHERE tenant_id = $1 AND kind = 'APPROVAL' AND payload->>'hold_id' = $2`,
+      [seed.tenant, holdId],
+    );
+    expect(rows.filter((r) => r.payload.decision === "APPROVED")).toHaveLength(0);
+  });
+
+  it("still approves a hold that is inside its TTL", async () => {
+    const check = await client.check({
+      tool: "refund",
+      params: { order_id: "O-TTL-2", amount: 600000, currency: "INR" },
+      principal: "user:monty@acme.co",
+    });
+    expect(check.verdict).toBe("ESCALATE");
+    const res = await decide(check.hold_id!, "APPROVED", "user:steven@acme.co");
+    expect(res.statusCode).toBe(200);
+  });
+});

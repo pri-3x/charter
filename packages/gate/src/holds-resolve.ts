@@ -23,6 +23,8 @@ interface HoldRow {
   initiating_principal: string;
   approvers_snapshot: string[];
   verdict_entry_id: string;
+  /** Past this instant the hold is expired whether or not the sweeper has noticed yet. */
+  expired: boolean;
 }
 
 export async function decideHold(
@@ -34,7 +36,8 @@ export async function decideHold(
   try {
     await client.query("BEGIN");
     const res = await client.query<HoldRow>(
-      `SELECT tenant_id, status, initiating_principal, approvers_snapshot, verdict_entry_id
+      `SELECT tenant_id, status, initiating_principal, approvers_snapshot, verdict_entry_id,
+              (ttl_at <= now()) AS expired
          FROM holds WHERE id = $1 FOR UPDATE`,
       [holdId],
     );
@@ -46,6 +49,16 @@ export async function decideHold(
     if (hold.status !== "PENDING") {
       await client.query("ROLLBACK");
       return { ok: false, code: 409, reason: `hold already ${hold.status.toLowerCase()}` };
+    }
+    // Expiry is a fact about the clock, not about whether a background job has run yet. Until this
+    // check existed, `ttl_at` was consulted ONLY by sweepExpiredHolds — so a hold whose TTL had
+    // passed stayed APPROVABLE for as long as the sweeper was behind. On a platform that limits
+    // cron frequency (Vercel Hobby: daily) that is the difference between a 4-hour hold and a
+    // 24-hour one, and the approver would have no way to tell. The sweeper still runs; its job is
+    // to write the EXPIRED entry promptly, not to make the expiry real.
+    if (hold.expired) {
+      await client.query("ROLLBACK");
+      return { ok: false, code: 409, reason: "hold has expired" };
     }
     // Self-approval is refused and NOT written to the chain (D9 / API.md S8 semantics).
     if (input.decidedBy === hold.initiating_principal) {

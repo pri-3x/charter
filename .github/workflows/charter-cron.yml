@@ -1,0 +1,75 @@
+# Charter's background jobs, on a schedule Vercel Hobby will not run.
+#
+# Vercel Hobby allows ONE cron invocation per day per job, which is why vercel.json now declares
+# daily schedules — anything more frequent makes Vercel reject the whole deployment, which is what
+# silently froze the site on a stale build for several days.
+#
+# Daily is fine as a floor but poor as a ceiling:
+#   * holds      — expiry is enforced at decision time (see holds-resolve.ts), so a late sweep no
+#                  longer lets an expired hold be approved. What a late sweep DOES delay is the
+#                  EXPIRED ledger entry, so the chain is briefly less informative than reality.
+#   * checkpoint — a signed checkpoint is what pins a range of history to a point in time. Sealing
+#                  once a day leaves up to 24h of entries un-anchored, which weakens exactly the
+#                  "when did you know?" property the product sells.
+#
+# So GitHub Actions drives them properly and Vercel's daily jobs stay as a backstop. Actions cron is
+# best-effort on free runners and often runs late; that is acceptable here because neither job is
+# load-bearing for a verdict — both are bookkeeping.
+#
+# Setup: add two repository secrets (Settings → Secrets and variables → Actions)
+#   CHARTER_BASE_URL   https://usecharter.xyz
+#   CRON_SECRET        the same value set in the Vercel project's environment variables
+name: charter-cron
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # so it can be run by hand after a deploy
+
+concurrency:
+  group: charter-cron
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve or exit quietly
+        id: cfg
+        env:
+          BASE: ${{ secrets.CHARTER_BASE_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then
+            echo "CHARTER_BASE_URL or CRON_SECRET is not set — skipping (see this file's header)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sweep expired holds
+        if: steps.cfg.outputs.skip == 'false'
+        env:
+          BASE: ${{ secrets.CHARTER_BASE_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          code=$(curl -sS -o /tmp/holds.json -w '%{http_code}' --max-time 60 \
+            -H "authorization: Bearer $SECRET" "$BASE/api/cron/holds")
+          echo "holds -> HTTP $code"; cat /tmp/holds.json; echo
+          # A 404 means the gate is not deployed yet. That is a deployment state, not a job failure,
+          # and turning it into a red run every 15 minutes would train everyone to ignore this.
+          if [ "$code" = "404" ]; then echo "::notice::gate not deployed yet"; exit 0; fi
+          [ "$code" = "200" ]
+
+      - name: Seal a checkpoint
+        if: steps.cfg.outputs.skip == 'false'
+        env:
+          BASE: ${{ secrets.CHARTER_BASE_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          code=$(curl -sS -o /tmp/cp.json -w '%{http_code}' --max-time 60 \
+            -H "authorization: Bearer $SECRET" "$BASE/api/cron/checkpoint")
+          echo "checkpoint -> HTTP $code"; cat /tmp/cp.json; echo
+          if [ "$code" = "404" ]; then echo "::notice::gate not deployed yet"; exit 0; fi
+          [ "$code" = "200" ]

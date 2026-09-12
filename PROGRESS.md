@@ -809,3 +809,44 @@ The endpoint host is not resolved before the request, so a hostname resolving to
 not caught, and pinning the resolved address would be needed to close DNS rebinding properly.
 Registration is admin-only, so the exposure is a misconfigured admin rather than a hostile caller.
 Recorded in `egress.ts` as a named gap rather than papered over.
+
+---
+
+## Hold expiry was only as real as the cron schedule
+
+Found while fixing a Vercel deploy failure, and much more serious than the thing that surfaced it.
+
+`ttl_at` was read in exactly one place: `sweepExpiredHolds`. `decideHold` checked only
+`status === 'PENDING'`. So a hold past its TTL stayed **approvable** for as long as the sweeper was
+behind — expiry was not a property of the clock, it was a property of whether a background job had
+run. A 240-minute hold on a gate whose sweeper was down could be countersigned a day later, and the
+approver would see nothing to suggest the window had closed.
+
+`decideHold` now reads `(ttl_at <= now()) AS expired` in the same `FOR UPDATE` select it already
+does and refuses with 409. The sweeper still runs; its job is to write the EXPIRED ledger entry
+promptly, not to make the expiry real.
+
+Verified the test actually tests it: with the check removed the new case fails, with it restored all
+7 in the file pass.
+
+**Why it surfaced now.** Vercel Hobby permits one cron invocation per day, and `vercel.json`
+declared `*/5` and `*/15`. Vercel rejects the whole deployment for that, which is why every push
+since the file was added silently failed and the site sat on a stale build. The obvious fix — make
+the crons daily — would have turned this latent bug into a real one, so the ordering matters: fix
+expiry first, then slow the cron down.
+
+`vercel.json` now declares daily jobs (Hobby-compatible) and `.github/workflows/charter-cron.yml`
+drives both endpoints every 15 minutes for free, with Vercel's daily runs as a backstop. Actions
+cron is best-effort and often late; acceptable because neither job is load-bearing for a verdict.
+Needs two repo secrets, `CHARTER_BASE_URL` and `CRON_SECRET`; without them the workflow exits
+quietly rather than failing red every quarter hour.
+
+Checkpoint sealing is the part that genuinely wants frequency: a signed checkpoint pins a range of
+history to a point in time, so sealing once a day leaves up to 24h un-anchored and weakens the
+"when did you know?" property. That is the argument for the Actions job, not the hold sweep.
+
+### Test note
+
+The new cases sit after S15 in `m3.scenarios.test.ts`, which suspends the agent and relies on the
+file-level `afterAll` to restore it. Anything appended after S15 therefore runs against a suspended
+agent and sees DENY. The block restores the agent in its own `beforeAll`.
