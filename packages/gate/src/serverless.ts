@@ -4,6 +4,7 @@ import type { Pool } from "./db.js";
 import { expireHolds } from "./holds-resolve.js";
 import { signerFromPem, createPendingCheckpoint } from "./checkpoint.js";
 import type { FastifyInstance } from "fastify";
+import { loadCredentialKey } from "./credentials/crypto.js";
 
 /**
  * Serverless adapter for the gate.
@@ -51,6 +52,15 @@ export function getApp(): Promise<FastifyInstance> {
         ...(process.env.CHARTER_DEMO_AGENT_KEY
           ? { demoAgentKey: process.env.CHARTER_DEMO_AGENT_KEY }
           : {}),
+        // Pattern B. Parsed here rather than passed through as a string so a malformed key fails
+        // when the instance boots, not on the first payment. Absent ⇒ /v1/credentials and /v1/proxy
+        // answer 503 and Pattern A still works; never generated, because a key invented at boot
+        // encrypts happily and then cannot decrypt anything the next instance stores.
+        ...(process.env.CHARTER_CREDENTIAL_KEY
+          ? { credentialKey: loadCredentialKey(process.env.CHARTER_CREDENTIAL_KEY) }
+          : {}),
+        // NOTE: allowLoopbackEgress is deliberately never set here. It exists for local tests; on a
+        // hosted gate it would permit posting a live credential to a loopback address.
         demoTenant: TENANT,
       });
       await app.ready();
