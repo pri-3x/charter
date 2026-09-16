@@ -137,6 +137,20 @@ CREATE TABLE tool_credentials (
 );
 CREATE INDEX tool_credentials_status ON tool_credentials(tenant_id, status);
 
+-- Admin scoped to ONE tenant (0004). The global CHARTER_ADMIN_KEY can read every ledger and act
+-- anywhere; this is the same powers bounded to a single tenant, so someone can be given a real
+-- console without being given the real tenant. The gate PINS the tenant on the request rather than
+-- validating a parameter, so a route that forgets to check still cannot be redirected.
+CREATE TABLE tenant_admin_keys (
+  fingerprint  text PRIMARY KEY,
+  tenant_id    text NOT NULL REFERENCES tenants(id),
+  label        text NOT NULL,
+  status       text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','REVOKED')),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  revoked_at   timestamptz
+);
+CREATE INDEX tenant_admin_keys_tenant ON tenant_admin_keys(tenant_id, status);
+
 -- idempotency cache for /actions/check
 CREATE TABLE idempotency_keys (
   tenant_id  text NOT NULL,
@@ -199,7 +213,8 @@ CREATE TRIGGER checkpoints_no_update BEFORE UPDATE OR DELETE ON checkpoints
 -- CREATE ROLE charter_verifier LOGIN PASSWORD '...';
 GRANT SELECT, INSERT ON ledger_entries, checkpoints TO charter_gate;
 GRANT SELECT, INSERT, UPDATE ON tenants, agents, principals, policies, ledger_seq,
-  holds, limit_counters, idempotency_keys, authorities, tool_credentials TO charter_gate;
+  holds, limit_counters, idempotency_keys, authorities, tool_credentials,
+  tenant_admin_keys TO charter_gate;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO charter_verifier;
 -- NOTE: no UPDATE/DELETE on ledger_entries/checkpoints for anyone but superuser;
 -- the trigger blocks even superuser unless it disables the trigger (tamper tests do exactly

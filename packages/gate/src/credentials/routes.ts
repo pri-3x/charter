@@ -11,6 +11,7 @@ import {
 } from "./store.js";
 import { callTool, assertSafeEndpoint, EgressConfigError } from "./egress.js";
 import { CredentialKeyError } from "./crypto.js";
+import { pinTenant } from "../tenant-scope.js";
 
 /**
  * Pattern B routes (SPEC §7, D1): credential custody and the authorizing proxy.
@@ -90,6 +91,8 @@ export function registerCredentialRoutes(app: FastifyInstance, deps: CredentialD
   app.post("/v1/credentials", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
     const blocked = needKey(reply);
     if (blocked) return blocked;
 
@@ -129,6 +132,8 @@ export function registerCredentialRoutes(app: FastifyInstance, deps: CredentialD
   app.get<{ Querystring: { tenant?: string } }>("/v1/credentials", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
     const creds = await listCredentials(pool, req.query.tenant ?? defaultTenant);
     return reply.code(200).send({
       credentials: creds.map((c) => ({
@@ -149,6 +154,8 @@ export function registerCredentialRoutes(app: FastifyInstance, deps: CredentialD
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
       const by = req.body?.by_principal;
       if (!by) return reply.code(400).send({ error: "by_principal is required" });
       const out = await revokeCredential(pool, {

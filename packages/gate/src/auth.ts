@@ -13,7 +13,14 @@ export interface AgentRow {
 
 export type AuthResult =
   | { kind: "agent"; agent: AgentRow }
-  | { kind: "admin" }
+  /**
+   * `tenant` absent  → the global operator key: every tenant, every route.
+   * `tenant` present → admin for that tenant ONLY. Deliberately the same `kind`, so the 18 existing
+   *   `auth.kind !== "admin"` checks keep working unchanged; the scoping is enforced separately by
+   *   pinning the tenant on the request (see requireAdmin), which is safe even for a route that
+   *   forgets to look.
+   */
+  | { kind: "admin"; tenant?: string }
   | { kind: "none" };
 
 /** Extract a bearer token from an Authorization header. */
@@ -35,9 +42,18 @@ export async function resolveAuth(
   const token = bearerToken(header);
   if (!token) return { kind: "none" };
 
+  // The global operator key first: a constant-time-ish exact match, no database round trip.
   if (token === adminKey) return { kind: "admin" };
 
   const fingerprint = sha256Token(token);
+
+  // A tenant-scoped admin key. Checked before agent keys because the two namespaces are disjoint
+  // and this ordering keeps the common agent path at one query.
+  const scoped = await pool.query<{ tenant_id: string }>(
+    "SELECT tenant_id FROM tenant_admin_keys WHERE fingerprint = $1 AND status = 'ACTIVE'",
+    [fingerprint],
+  );
+  if (scoped.rows[0]) return { kind: "admin", tenant: scoped.rows[0].tenant_id };
   const { rows } = await pool.query<AgentRow>(
     `SELECT id, tenant_id, name, key_fingerprint, max_autonomy, status
        FROM agents WHERE key_fingerprint = $1`,

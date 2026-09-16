@@ -49,6 +49,9 @@ import {
   TenantNotFoundError,
 } from "./attestation/index.js";
 import { registerStreamRoute } from "./stream.js";
+import { pinTenant } from "./tenant-scope.js";
+import { randomBytes } from "node:crypto";
+import { sha256Token } from "@charter/shared";
 
 export interface Deps {
   pool: Pool;
@@ -445,6 +448,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
       const parsed = decisionBodySchema.safeParse(req.body);
       if (!parsed.success) {
@@ -480,6 +485,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
       // Single-tenant POC: agents live under the seeded tenant.
       const result = await suspendAgent(pool, "acme-fintech", req.params.agent_id);
       if (!result.ok) return reply.code(result.code).send({ error: result.reason });
@@ -522,6 +529,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   app.get<{ Querystring: { tenant?: string } }>("/v1/agents", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
     const tenant = req.query.tenant ?? DEFAULT_TENANT;
     return reply.code(200).send({ agents: await listRegistry(pool, tenant) });
   });
@@ -532,6 +541,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
       const tenant = req.query.tenant ?? DEFAULT_TENANT;
       const cards = await listRegistry(pool, tenant);
       const card = cards.find((c) => c.id === req.params.agent_id);
@@ -545,6 +556,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   app.post<{ Querystring: { tenant?: string } }>("/v1/agents", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
     const parsed = registerAgentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -595,6 +608,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
       const parsed = grantAuthoritySchema.safeParse(req.body);
       if (!parsed.success) {
@@ -631,6 +646,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
       const parsed = revokeSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -656,6 +673,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
       const parsed = revokeSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -678,6 +697,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   app.get<{ Querystring: { tenant?: string } }>("/v1/policies", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
     const tenant = req.query.tenant ?? DEFAULT_TENANT;
 
     const { rows } = await pool.query<{
@@ -709,6 +730,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   app.post("/v1/policies", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
     const parsed = policyCreateSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -716,6 +739,14 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     }
     try {
       const { draftId, parsed: doc, coverage } = await createDraft(pool, parsed.data.yaml);
+      // A policy names its own tenant inside the document, where pinTenant cannot reach. A scoped
+      // key that uploads a doc for someone else's tenant must be refused — the draft is already
+      // stored at this point, but it is inert until activation and activation is checked too.
+      if (auth.tenant && doc.tenant !== auth.tenant) {
+        return reply.code(403).send({
+          error: `this key is scoped to tenant '${auth.tenant}'; the policy document names '${doc.tenant}'`,
+        });
+      }
       return reply.code(200).send({
         draft_id: draftId,
         parsed: doc,
@@ -745,7 +776,22 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     async (req, reply) => {
       const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
       if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+      const scopeDenial = pinTenant(req, auth);
+      if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
       try {
+        // Same reasoning as the draft route: the tenant lives on the stored row, not on the request.
+        if (auth.tenant) {
+          const owner = await pool.query<{ tenant_id: string }>(
+            "SELECT tenant_id FROM policies WHERE draft_id = $1",
+            [req.params.draft_id],
+          );
+          const t = owner.rows[0]?.tenant_id;
+          if (t && t !== auth.tenant) {
+            return reply.code(403).send({
+              error: `this key is scoped to tenant '${auth.tenant}' and cannot activate a policy for '${t}'`,
+            });
+          }
+        }
         const result = await activateDraft(pool, store, req.params.draft_id);
         return reply.code(200).send({
           version: result.version,
@@ -764,6 +810,47 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
     },
   );
 
+  // ---- POST /v1/tenant-keys (GLOBAL admin only) ---------------------------------------------
+  // Mint an admin key bounded to one tenant. Deliberately closed to scoped keys themselves: a
+  // sandbox admin that could mint more sandbox admins is a privilege-escalation ladder, and there is
+  // no reason a tester needs one.
+  app.post<{ Body: { tenant?: string; label?: string } }>("/v1/tenant-keys", async (req, reply) => {
+    const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
+    if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    if (auth.tenant) {
+      return reply.code(403).send({ error: "only the global operator key may mint tenant keys" });
+    }
+    const tenant = req.body?.tenant;
+    const label = req.body?.label;
+    if (!tenant || !label) return reply.code(400).send({ error: "tenant and label are required" });
+
+    const exists = await pool.query("SELECT 1 FROM tenants WHERE id = $1", [tenant]);
+    if (exists.rowCount === 0) return reply.code(404).send({ error: `no such tenant '${tenant}'` });
+
+    // Shown once, stored as a fingerprint — the same contract as an agent key.
+    const raw = `chr_ta_${randomBytes(24).toString("base64url")}`;
+    await pool.query(
+      "INSERT INTO tenant_admin_keys (fingerprint, tenant_id, label) VALUES ($1, $2, $3)",
+      [sha256Token(raw), tenant, label],
+    );
+    return reply.code(200).send({ tenant, label, key: raw });
+  });
+
+  // ---- POST /v1/tenant-keys/revoke (GLOBAL admin only) ---------------------------------------
+  app.post<{ Body: { key?: string } }>("/v1/tenant-keys/revoke", async (req, reply) => {
+    const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
+    if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    if (auth.tenant) return reply.code(403).send({ error: "only the global operator key may revoke" });
+    const raw = req.body?.key;
+    if (!raw) return reply.code(400).send({ error: "key is required" });
+    const r = await pool.query(
+      "UPDATE tenant_admin_keys SET status = 'REVOKED', revoked_at = now() WHERE fingerprint = $1 AND status = 'ACTIVE'",
+      [sha256Token(raw)],
+    );
+    if (r.rowCount === 0) return reply.code(404).send({ error: "no active key matches" });
+    return reply.code(200).send({ status: "REVOKED" });
+  });
+
   // ---- GET /v1/ledger (admin) --------------------------------------------------------------
   app.get<{
     Querystring: {
@@ -777,6 +864,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   }>("/v1/ledger", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
     const q = req.query;
     if (!q.tenant) return reply.code(400).send({ error: "tenant query param is required" });
@@ -826,6 +915,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   app.get<{ Querystring: { tenant?: string } }>("/v1/ledger/checkpoints", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
     const tenant = req.query.tenant ?? DEFAULT_TENANT;
     const { rows } = await pool.query(
       `SELECT id, seq_from, seq_to, merkle_root, signature,
@@ -840,6 +931,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   app.get<{ Params: { entry_id: string } }>("/v1/ledger/proof/:entry_id", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
     const entry = await pool.query<{ tenant_id: string; seq: string; entry_hash: string }>(
       "SELECT tenant_id, seq, entry_hash FROM ledger_entries WHERE entry_id = $1",
@@ -891,6 +984,8 @@ export function registerRoutes(app: FastifyInstance, deps: Deps): void {
   }>("/v1/attestation", async (req, reply) => {
     const auth = await resolveAuth(pool, req.headers.authorization, adminKey);
     if (auth.kind !== "admin") return reply.code(401).send({ error: "unauthorized" });
+    const scopeDenial = pinTenant(req, auth);
+    if (scopeDenial) return reply.code(scopeDenial.code).send({ error: scopeDenial.error });
 
     const parsed = attestationQuerySchema.safeParse(req.query);
     if (!parsed.success) {
