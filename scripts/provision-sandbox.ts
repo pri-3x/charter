@@ -17,6 +17,8 @@
  *   --reset                     wipe the sandbox's agents/keys first (the LEDGER is never deleted)
  */
 import { randomBytes, createHash } from "node:crypto";
+import { grantAuthority } from "../packages/gate/src/registry/store.js";
+import { makePool } from "../packages/gate/src/db.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import pg from "pg";
@@ -76,12 +78,35 @@ try {
   // A policy, or every check fails closed with "no active policy" and the sandbox looks broken.
   const active = await c.query("SELECT 1 FROM policies WHERE tenant_id=$1 AND status='active'", [TENANT]);
   if (active.rowCount === 0) {
-    const yaml = readFileSync(resolve(process.cwd(), "policies/example.acme.yaml"), "utf8")
+    // A policy written for the sandbox rather than acme's with the tenant swapped: acme's names
+    // agents that do not exist here, and the gate correctly answers defaults.unknown_agent for all
+    // of them, which looks exactly like the product being broken.
+    const yaml = readFileSync(resolve(process.cwd(), "policies/sandbox.yaml"), "utf8")
       .replace(/^tenant:.*$/m, `tenant: ${TENANT}`);
     await c.query(
       `INSERT INTO policies (tenant_id, version, doc_yaml, doc_hash, status, activated_at)
        VALUES ($1, 1, $2, $3, 'active', now())`,
       [TENANT, yaml, sha(yaml)],
+    );
+  }
+
+  // A ready-made agent. A sandbox that starts empty makes the tester build a charter and a grant
+  // before anything can happen, and the first thing they see is an empty table — which reads as
+  // broken rather than as "nothing here yet". They can still create their own; this is so there is
+  // something to press immediately.
+  const agentKey = `chr_${randomBytes(24).toString("base64url")}`;
+  const existing = await c.query("SELECT 1 FROM agents WHERE tenant_id=$1 AND id=$2", [TENANT, "demo-agent"]);
+  if (existing.rowCount === 0) {
+    await c.query(
+      `INSERT INTO agents (id, tenant_id, name, key_fingerprint, max_autonomy, status,
+                           owner_principal, department, purpose, approver_chain, expires_at)
+       VALUES ($1,$2,$3,$4,'ALLOW','ACTIVE',$5,$6,$7,$8, now() + interval '90 days')`,
+      [
+        "demo-agent", TENANT, "Demo Agent", sha(agentKey),
+        "user:you@sandbox.test", "Customer Support",
+        "Handles refunds and customer email for the sandbox.",
+        ["role:finance-lead"],
+      ],
     );
   }
 
@@ -96,15 +121,43 @@ try {
 
   await c.query("COMMIT");
 
+  // The grant is written through the real code path (it writes an AUTHORITY_GRANTED ledger entry),
+  // so it needs its own connection after the transaction above has committed.
+  const liveGrant = await c.query(
+    "SELECT 1 FROM authorities WHERE tenant_id=$1 AND agent_id=$2 AND status='ACTIVE'",
+    [TENANT, "demo-agent"],
+  );
+  if (liveGrant.rowCount === 0) {
+    // Written through the real grant path so it produces an AUTHORITY_GRANTED ledger entry — the
+    // sandbox's chain should look like a real one from its first entry.
+    const pool = makePool(url);
+    const day = 86400000;
+    const res = await grantAuthority(pool, {
+      tenant: TENANT,
+      agentId: "demo-agent",
+      grantorPrincipal: "user:approver@sandbox.test",
+      validFrom: new Date(Date.now() - day).toISOString(),
+      validUntil: new Date(Date.now() + 90 * day).toISOString(),
+      budgetMinor: 10_000_000, // Rs 1,00,000/day — enough to explore without hitting the ceiling
+      budgetCurrency: "INR",
+      budgetWindowMinutes: 1440,
+      allowedTools: ["refund", "send_email", "lookup_order", "update_record"],
+      forbiddenOps: ["initiate_payout", "run_payroll", "production_db_query"],
+      ref: "sandbox-grant",
+    });
+    await pool.end();
+    if (!res.ok) throw new Error(`grant failed: ${JSON.stringify(res)}`);
+  }
+
   console.log(`
   Sandbox ready — tenant '${TENANT}'
 
-  Give the tester this, and nothing else:
+  Send the tester these four lines and TESTING.md:
 
     Console      ${BASE}/console/
     Base URL     (leave blank)
-    Tenant       ${TENANT}
     Admin key    ${key}
+    Agent key    demo-agent=${agentKey}
 
   That key is admin for '${TENANT}' only. It cannot read or touch any other tenant — every admin
   request has its tenant pinned by the gate, and the attempt to escape is refused, not redirected.

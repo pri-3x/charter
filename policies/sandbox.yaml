@@ -1,0 +1,59 @@
+# The policy the sandbox tenant runs on. Written to be READ by someone trying Charter for the first
+# time, so it is deliberately small: four rules that produce four visibly different outcomes.
+#
+# `tenant` is rewritten by scripts/provision-sandbox.ts if the sandbox is given another name.
+version: 0
+tenant: sandbox
+
+defaults:
+  unknown_tool: DENY      # anything not named below is refused, not waved through
+  unknown_agent: DENY
+
+agents:
+  demo-agent:
+    allowed_tools: [refund, send_email, lookup_order, update_record, delete_record]
+    max_autonomy: ALLOW
+
+rules:
+  # Small refunds go through on their own.
+  - id: R1-refund-small
+    when: { tool: refund, params.amount: { lte: 500000 } }     # <= Rs 5,000, in paise
+    verdict: ALLOW
+
+  # Large ones wait for a person. R1 and R2 together cover every amount, which is the property
+  # `npm run db:check`-style coverage analysis enforces: leave a gap and a limit rule would answer
+  # for it, which is how a guard accidentally becomes a grant.
+  - id: R2-refund-large
+    when: { tool: refund, params.amount: { gt: 500000 } }
+    verdict: ESCALATE
+    approvers: [role:finance-lead]
+    ttl_minutes: 240
+
+  # Some things are never allowed, whatever the amount.
+  - id: R3-no-deletes
+    when: { tool: delete_record }
+    verdict: DENY
+    reason: "Agents may never delete records."
+
+  # A rate limit is a cap on something already permitted, not a permission in itself.
+  - id: R4-email-rate
+    when: { tool: send_email }
+    limit: { window_minutes: 60, max_count: 20, key: agent }
+    verdict_on_breach: DENY
+
+  # Spending velocity, measured per person rather than per agent, so splitting a large refund into
+  # small ones still trips it.
+  - id: R5-refund-velocity
+    when: { tool: refund }
+    limit: { window_minutes: 1440, sum_param: params.amount, max_sum: 5000000, key: principal }
+    verdict_on_breach: ESCALATE
+    approvers: [role:finance-lead]
+    ttl_minutes: 240
+
+  - id: R6-lookup-allow
+    when: { tool: lookup_order }
+    verdict: ALLOW
+
+  - id: R7-update-allow
+    when: { tool: update_record }
+    verdict: ALLOW
