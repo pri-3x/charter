@@ -31,6 +31,11 @@ export function loadSigner(pemPath: string): Signer {
 export function normalizePem(raw: string): string {
   let pem = raw.trim();
 
+  // Some UIs (and plenty of shell one-liners) keep the surrounding quotes.
+  if ((pem.startsWith('"') && pem.endsWith('"')) || (pem.startsWith("'") && pem.endsWith("'"))) {
+    pem = pem.slice(1, -1).trim();
+  }
+
   // Whole thing base64-encoded (a common way to dodge the newline problem entirely).
   if (!pem.includes("-----BEGIN")) {
     try {
@@ -57,9 +62,44 @@ export function normalizePem(raw: string): string {
   return pem.endsWith("\n") ? pem : pem + "\n";
 }
 
+/**
+ * OpenSSL answers all of these with the same eleven words —
+ * `error:1E08010C:DECODER routines::unsupported` — which is true and useless:
+ *
+ *   a PUBLIC key where a private one belongs · the value still wrapped in quotes · armour with no
+ *   body · a base64 body with no armour · something that is not a key at all
+ *
+ * The operator is left re-pasting a private key into a web form to see which it was. Since the
+ * input is already in hand, say which.
+ */
+function diagnosePem(pem: string): string | null {
+  if (pem.trim() === "") return "the value is empty";
+  if (/-----BEGIN (.*)PUBLIC KEY-----/.test(pem)) {
+    return "this is a PUBLIC key; CHARTER_SIGNING_KEY_PEM needs the PRIVATE half " +
+      "(the block beginning '-----BEGIN PRIVATE KEY-----')";
+  }
+  if (!pem.includes("-----BEGIN")) {
+    return "no PEM armour found — the value should begin '-----BEGIN PRIVATE KEY-----'";
+  }
+  if (/-----BEGIN [A-Z ]+-----\s*-----END/.test(pem)) return "the PEM has a header and footer but no body";
+  if (/-----BEGIN (RSA|EC) PRIVATE KEY-----/.test(pem)) {
+    return "this is a traditional/SEC1 key; Charter signs with Ed25519 and needs a PKCS#8 key " +
+      "(convert with: openssl pkcs8 -topk8 -nocrypt -in old.pem -out new.pem)";
+  }
+  return null;
+}
+
 export function signerFromPem(pem: string): Signer {
-  const key = createPrivateKey(normalizePem(pem));
-  return { sign: (message) => cryptoSign(null, Buffer.from(message, "utf8"), key).toString("base64") };
+  const normalized = normalizePem(pem);
+  try {
+    const key = createPrivateKey(normalized);
+    return { sign: (message) => cryptoSign(null, Buffer.from(message, "utf8"), key).toString("base64") };
+  } catch (err) {
+    const why = diagnosePem(normalized);
+    const base = err instanceof Error ? err.message : String(err);
+    // Never include the value itself: this function's whole input is a private key.
+    throw new Error(why ? `CHARTER_SIGNING_KEY_PEM: ${why} (openssl said: ${base})` : base);
+  }
 }
 
 export interface Checkpoint {
