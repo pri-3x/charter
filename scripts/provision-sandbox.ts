@@ -71,6 +71,11 @@ try {
   if (RESET) {
     // The ledger is INSERT-only and stays. Only the things a tester creates are cleared.
     await c.query("UPDATE tenant_admin_keys SET status='REVOKED', revoked_at=now() WHERE tenant_id=$1", [TENANT]);
+    // Retire the policy too, so --reset actually re-applies policies/sandbox.yaml. Without this the
+    // insert below is skipped (a policy is already active) and the sandbox keeps running whatever
+    // it was first provisioned with — which is how it ended up enforcing another tenant's policy
+    // and answering defaults.unknown_agent for the only agent it has.
+    await c.query("UPDATE policies SET status='retired' WHERE tenant_id=$1 AND status='active'", [TENANT]);
     await c.query("DELETE FROM authorities WHERE tenant_id=$1", [TENANT]);
     await c.query("DELETE FROM agents WHERE tenant_id=$1", [TENANT]);
   }
@@ -83,10 +88,15 @@ try {
     // of them, which looks exactly like the product being broken.
     const yaml = readFileSync(resolve(process.cwd(), "policies/sandbox.yaml"), "utf8")
       .replace(/^tenant:.*$/m, `tenant: ${TENANT}`);
+    // Version must not collide with a retired one: (tenant, version) is the primary key.
+    const next = await c.query<{ v: number }>(
+      "SELECT COALESCE(MAX(version), 0) + 1 AS v FROM policies WHERE tenant_id = $1 AND version > 0",
+      [TENANT],
+    );
     await c.query(
       `INSERT INTO policies (tenant_id, version, doc_yaml, doc_hash, status, activated_at)
-       VALUES ($1, 1, $2, $3, 'active', now())`,
-      [TENANT, yaml, sha(yaml)],
+       VALUES ($1, $2, $3, $4, 'active', now())`,
+      [TENANT, Number(next.rows[0]!.v), yaml, sha(yaml)],
     );
   }
 
