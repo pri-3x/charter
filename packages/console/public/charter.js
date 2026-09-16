@@ -43,12 +43,59 @@ function toast(msg, ms = 3200) {
 // connection
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Credentials from the URL fragment, so a console can be handed over as ONE link:
+ *
+ *   /console/#key=chr_ta_...&agent=demo-agent%3Dchr_...
+ *
+ * Typing an admin key into a settings panel before anything works is the single biggest thing that
+ * made this unusable for someone seeing it for the first time. The fragment is used rather than a
+ * query string because a fragment is never sent to the server and never lands in an access log, and
+ * it is stripped from the address bar immediately after being read so it does not sit in history or
+ * get copy-pasted onward by accident.
+ */
+function adoptCredentialsFromUrl() {
+  const raw = location.hash.startsWith("#") ? location.hash.slice(1) : "";
+  if (!raw) return;
+  const q = new URLSearchParams(raw);
+  let took = false;
+  const key = q.get("key");
+  if (key) {
+    localStorage.setItem("chr_admin", key.trim());
+    // A key scoped to one tenant carries its tenant with it, so forget whatever this browser had:
+    // a stale 'acme-fintech' here is exactly what turns a working sandbox key into a wall of 403s.
+    localStorage.removeItem("chr_tenant");
+    took = true;
+  }
+  const base = q.get("base");
+  if (base) { localStorage.setItem("chr_base", base.trim().replace(/\/$/, "")); took = true; }
+  const agent = q.get("agent"); // "id=key", repeatable
+  if (agent) {
+    const map = JSON.parse(localStorage.getItem("chr_agents") || "{}");
+    for (const pair of q.getAll("agent")) {
+      const i = pair.indexOf("=");
+      if (i > 0) map[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+    }
+    localStorage.setItem("chr_agents", JSON.stringify(map));
+    took = true;
+  }
+  if (took) history.replaceState(null, "", location.pathname + location.search);
+}
+adoptCredentialsFromUrl();
+
 const store = {
   get base() {
     return localStorage.getItem("chr_base") || "";
   },
+  /**
+   * Blank for a tenant-scoped key. The gate pins the tenant for those, and sending a guess is worse
+   * than sending nothing: naming another tenant is refused outright, so the old `acme-fintech`
+   * default made every request from a sandbox key a 403.
+   */
   get tenant() {
-    return localStorage.getItem("chr_tenant") || "acme-fintech";
+    const saved = localStorage.getItem("chr_tenant");
+    if (saved) return saved;
+    return this.adminKey.startsWith("chr_ta_") ? "" : "acme-fintech";
   },
   get adminKey() {
     return localStorage.getItem("chr_admin") || "";
@@ -62,6 +109,16 @@ const store = {
   },
   save(k, v) {
     localStorage.setItem("chr_" + k, v);
+  },
+  /**
+   * Learn the tenant from data the gate returned, so a scoped key does not have to be told it.
+   * PROOF needs the real name — the genesis hash is SHA-256 of "CHARTER_GENESIS:<tenant>", so a
+   * blank or wrong tenant makes verification fail for a chain that is perfectly intact.
+   */
+  learnTenant(entries) {
+    if (localStorage.getItem("chr_tenant")) return;
+    const t = (entries || []).find((e) => e && e.tenant)?.tenant;
+    if (t) localStorage.setItem("chr_tenant", t);
   },
 };
 
@@ -493,6 +550,7 @@ function feedRow(p, fresh) {
 
 async function loadFeed(freshSeq = null) {
   const { status, data } = await adminApi(`/v1/ledger?tenant=${encodeURIComponent(store.tenant)}&limit=100`);
+  if (status === 200) store.learnTenant(data?.entries);
   if (status !== 200) {
     $("feedBody").innerHTML = `<tr><td colspan="6" class="muted">Cannot read the record (${status}).</td></tr>`;
     return;
