@@ -117,7 +117,11 @@
         display: flex;
         flex-direction: column;
         padding: 0 var(--s-24);
-        max-width: 760px;
+        /* Grows on wide screens instead of stranding. At a fixed 760px the content stopped at
+           roughly 1460px of viewport while the column kept widening, so a 2000px screen showed
+           320px of empty paper to the left of the text and the whole page read as zoomed out.
+           52vw stays just inside the 54fr column, so the block still hugs the split line. */
+        max-width: clamp(760px, 52vw, 1280px);
         margin-left: auto;
         width: 100%;
       }
@@ -156,12 +160,19 @@
 
       /* Each headline line is its own clipped row for the entrance, so a line that wraps breaks the
          animation as well as the reading. Measured: the longest line ("Charter decides when it
-         can.") is 12.05x its font size wide. The column is 0.54vw - 48 until it caps at 760px, so
-         the exactly-fitting size is between 4.08vw and 4.17vw across 980-1440px — 3.9vw sits under
-         the whole range with headroom, and 56px clears the 59.1px that the capped 712px measure
-         allows. Re-measure these numbers if the headline text or the column width changes. */
+         can.") is 12.05x its font size wide, and the box is clamp(760px, 52vw, 1280px) minus 48px
+         of padding, itself bounded by the 54fr column.
+
+         The 56px ceiling was correct while the box was a fixed 760px, but it meant the type stopped
+         growing at ~1440px while the screen did not — a 2000px display showed 56px text in a 760px
+         box with 320px of empty paper beside it, which reads as a zoomed-out page rather than a
+         design. Widening the box let the ceiling rise with it.
+
+         Checked at 1280/1440/1600/1920/2000/2560: slack is 42/35/32/131/173/413px, tightest at
+         1600. Raising the cap WITHOUT widening the box overflows above ~1550px.
+         Re-measure if the headline text or the column width changes. */
       .hero h1 {
-        font-size: clamp(26px, 3.9vw, 56px);
+        font-size: clamp(26px, 3.9vw, 68px);
         line-height: 1.0;
         letter-spacing: -0.042em;
       }
