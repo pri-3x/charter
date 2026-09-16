@@ -18,8 +18,47 @@ export function loadSigner(pemPath: string): Signer {
  * Signer from the PEM itself rather than a path. Serverless hosts have no writable filesystem and no
  * place to put a key file, so there the private key arrives as an environment variable instead.
  */
+/**
+ * Normalise a PEM that has been through an environment-variable field.
+ *
+ * A PEM is multi-line and almost every deployment UI mangles that: some store the literal two
+ * characters `\` `n`, some strip the newlines entirely, some arrive base64-wrapped. OpenSSL then
+ * fails with `DECODER routines::unsupported`, which says nothing about newlines and sends people
+ * hunting for a key-format problem they do not have. Accept the common manglings instead — the
+ * bytes are identical either way, and the alternative is an operator re-pasting a private key into
+ * a web form until it takes.
+ */
+export function normalizePem(raw: string): string {
+  let pem = raw.trim();
+
+  // Whole thing base64-encoded (a common way to dodge the newline problem entirely).
+  if (!pem.includes("-----BEGIN")) {
+    try {
+      const decoded = Buffer.from(pem, "base64").toString("utf8");
+      if (decoded.includes("-----BEGIN")) pem = decoded.trim();
+    } catch {
+      /* not base64; fall through and let createPrivateKey report it */
+    }
+  }
+
+  // Literal backslash-n (JSON-escaped), and CRLF from a Windows clipboard.
+  pem = pem.replace(/\\r\\n|\\n/g, "\n").replace(/\r\n/g, "\n");
+
+  // Newlines stripped altogether: rebuild the armour. The body is base64, so it has no spaces of
+  // its own — every space between the header and footer was a newline.
+  if (!pem.includes("\n")) {
+    const m = /^(-----BEGIN [A-Z ]+-----)\s*(.*?)\s*(-----END [A-Z ]+-----)$/.exec(pem);
+    if (m) {
+      const body = m[2]!.replace(/\s+/g, "");
+      const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? body;
+      pem = `${m[1]}\n${wrapped}\n${m[3]}`;
+    }
+  }
+  return pem.endsWith("\n") ? pem : pem + "\n";
+}
+
 export function signerFromPem(pem: string): Signer {
-  const key = createPrivateKey(pem);
+  const key = createPrivateKey(normalizePem(pem));
   return { sign: (message) => cryptoSign(null, Buffer.from(message, "utf8"), key).toString("base64") };
 }
 
