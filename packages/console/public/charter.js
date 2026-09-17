@@ -1032,6 +1032,34 @@ function saveSettings() {
 // boot
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The no-credential state. The console is an operator tool: without a key it cannot read the
+ * register, the record or the proof, so every section it draws is a failure. Collapse them into one
+ * card that says what this is and how to get in.
+ */
+function showLocked() {
+  for (const id of ["register", "ask", "record", "proof"]) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  }
+  const start = document.getElementById("start");
+  if (!start) return;
+  start.insertAdjacentHTML(
+    "beforeend",
+    `<div class="card" style="margin-top:var(--s-24)">
+       <p><strong>This console needs a key.</strong></p>
+       <p class="small">It is the operator view of a running Charter gate — the register of agents,
+          every decision it made, and the proof that none of them were edited afterwards. None of
+          that is public, so it does not load without a credential.</p>
+       <p class="small">If someone sent you a link, open that link rather than this page: it carries
+          the key with it. Otherwise paste one into <strong>Advanced \u2192 Connection</strong> at the
+          bottom of this page.</p>
+       <p class="small" style="opacity:.7">Want to see Charter work without a key at all?
+          <a href="/">The home page</a> runs real decisions against this same gate.</p>
+     </div>`,
+  );
+}
+
 async function boot() {
   $("playBtn").addEventListener("click", play);
   $("fSubmit").addEventListener("click", createAgent);
@@ -1062,6 +1090,15 @@ async function boot() {
 
   renderSteps();
   await bootstrap();
+
+  // With no key there is nothing to show, and rendering every section anyway produced a page of
+  // error banners — "no key", "cannot read the record (401)", empty tables — which reads as a
+  // broken product rather than a locked door. Show one honest screen instead, and stop.
+  if (!store.adminKey) {
+    showLocked();
+    return;
+  }
+
   await loadAgents();
   await loadFeed();
   await loadPending();
