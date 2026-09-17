@@ -158,6 +158,27 @@
         margin-top: var(--s-16);
       }
 
+      /* Everything in the hero scales together, or it does not scale at all.
+         The headline grows to 96px on a wide screen while .lede caps at 19px and .cap is a fixed
+         11px, so the block ended up as an enormous headline sitting on laptop-sized body text and
+         small buttons — proportions that read as wrong even when the widths are right. These are
+         scoped to .hero-l so the rest of the page, which is read at a normal measure, is untouched.
+         Ratios chosen against the headline: roughly 3.6:1 to the lede at every width. */
+      .hero-l .lede {
+        font-size: clamp(16px, 0.95vw, 26px);
+        line-height: 1.5;
+      }
+      .hero-l .eyebrow,
+      .hero-l .qual,
+      .hero-l .cap {
+        font-size: clamp(11px, 0.5vw, 15px);
+      }
+      .hero-l .btn > .lbl {
+        font-size: clamp(12px, 0.55vw, 16px);
+        height: clamp(44px, 2.4vw, 62px);
+        padding-inline: clamp(var(--s-24), 1.4vw, 44px);
+      }
+
       /* Each headline line is its own clipped row for the entrance, so a line that wraps breaks the
          animation as well as the reading. Measured: the longest line ("Charter decides when it
          can.") is 12.05x its font size wide, and the box is clamp(760px, 52vw, 1280px) minus 48px
