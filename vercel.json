@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/build-api.mjs && node scripts/build-static.mjs",
+  "buildCommand": "test -f scripts/build-api.mjs || { echo \"\"; echo \"Charter build: running in $(pwd), which is not the repo root.\"; echo \"Vercel Settings -> General -> Root Directory must be EMPTY (the repo root),\"; echo \"not packages/gate. With a package as the root, scripts/ and vercel.json are\"; echo \"both out of reach, so the rewrites, functions and crons disappear too.\"; echo \"\"; exit 1; }; node scripts/build-api.mjs && node scripts/build-static.mjs",
   "outputDirectory": "dist-web",
   "installCommand": "npm ci --include=dev",
   "headers": [
