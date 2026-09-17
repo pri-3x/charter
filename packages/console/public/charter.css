@@ -396,7 +396,17 @@ button[disabled] {
 
 .wrap {
   width: 100%;
-  max-width: 1240px;
+  /* 1240px was tuned for a ~1440px screen, where it uses 86% of the width. It does not scale: at
+     2300px it uses 54% and at 3170px only 39%, so every section sits in a narrow column with wide
+     empty margins and the whole page reads as shrunken — which is what a wide display actually
+     shows, browser zoom or not.
+
+     The lower bound is deliberately 60vw rather than something larger: 60vw only exceeds 1240px
+     above ~2066px, so every viewport from mobile to a 1920px desktop renders byte-for-byte as
+     before and only genuinely wide screens change. Prose is unaffected either way — .lede, headings
+     and captions carry their own ch-based measures, so widening this widens the GRIDS, which are
+     the parts that were leaving the space empty. */
+  max-width: clamp(1240px, 60vw, 1920px);
   margin: 0 auto;
   padding: 0 var(--s-24);
 }
