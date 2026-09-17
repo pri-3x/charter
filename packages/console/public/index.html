@@ -44,7 +44,13 @@
       <section id="start">
         <div class="section-head">
           <p class="eyebrow"><span class="n">01</span> Start here</p>
-          <h1>Your AI can spend money. Charter decides when it can.</h1>
+          <!-- One block per sentence. Left to wrap freely the second broke as "…when it / can."
+               and stranded a two-letter orphan; inline-block fixed that but added baseline
+               descender space under each line, so block it is. -->
+          <h1>
+            <span style="display: block">Your AI can spend money.</span>
+            <span style="display: block">Charter decides when it can.</span>
+          </h1>
           <p class="lede">
             Every time an agent tries to do something real, it asks Charter first. Charter allows it,
             blocks it, or freezes it until a person approves.

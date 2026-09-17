@@ -1094,8 +1094,14 @@ async function boot() {
   // With no key there is nothing to show, and rendering every section anyway produced a page of
   // error banners — "no key", "cannot read the record (401)", empty tables — which reads as a
   // broken product rather than a locked door. Show one honest screen instead, and stop.
+  //
+  // But keep polling health: /healthz needs no credential, and the first version of this returned
+  // before reaching it, so the status chip sat on "CONNECTING…" for ever. A locked console that
+  // cannot even say whether the gate is up looks broken in precisely the way this was meant to fix.
   if (!store.adminKey) {
     showLocked();
+    pollHealth();
+    setInterval(() => !document.hidden && pollHealth(), 15_000);
     return;
   }
 

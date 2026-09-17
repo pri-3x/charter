@@ -671,8 +671,14 @@ main.wrap > section:last-of-type {
   display: grid;
   gap: var(--s-12);
   margin-bottom: var(--s-24);
-  max-width: 74ch;
+  /* 74ch is a reading measure and the right cap for the lede underneath. It is the wrong cap for
+     the h1 above it: at the 56px the heading reaches on a wide screen, 74ch resolves to ~658px and
+     the longest sentence measures 658px exactly — so it wrapped on a rounding error and stranded
+     "can." on a line of its own. Give the block room; the lede below keeps its own 60ch measure
+     from .lede, so widening this widens the heading only. */
+  max-width: min(100%, 96ch);
 }
+
 
 .card,
 .panel {
