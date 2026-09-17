@@ -17,6 +17,7 @@
  *   --reset                     wipe the sandbox's agents/keys first (the LEDGER is never deleted)
  */
 import { randomBytes, createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { grantAuthority } from "../packages/gate/src/registry/store.js";
 import { makePool } from "../packages/gate/src/db.js";
 import { readFileSync } from "node:fs";
@@ -158,6 +159,14 @@ try {
     await pool.end();
     if (!res.ok) throw new Error(`grant failed: ${JSON.stringify(res)}`);
   }
+
+  // The agent key is only knowable here (the database stores a fingerprint), and scripts/tester-link
+  // needs it to build a complete link. Gitignored, like .seed/agent-key.json.
+  mkdirSync(resolve(process.cwd(), ".seed"), { recursive: true });
+  writeFileSync(
+    resolve(process.cwd(), ".seed/sandbox.json"),
+    JSON.stringify({ tenant: TENANT, baseUrl: BASE, agentId: "demo-agent", agentKey }, null, 2) + "\n",
+  );
 
   console.log(`
   Sandbox ready — tenant '${TENANT}'
