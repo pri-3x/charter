@@ -303,8 +303,23 @@ function agentCard(a) {
 async function loadAgents() {
   const { status, data } = await adminApi(`/v1/agents?tenant=${encodeURIComponent(store.tenant)}`);
   if (status !== 200) {
-    $("agentList").innerHTML = `<div class="card"><p>Cannot read the register (${status}). ${esc(data?.error || "")}
-      Open <strong>Advanced → Connection</strong>.</p></div>`;
+    // "unauthorized" is true and unhelpful: no key, a revoked key and a key for another deployment
+    // all produce it, and the remedy differs. Say which one this is.
+    const key = store.adminKey;
+    let why;
+    if (!key) {
+      why = `<strong>No key is set in this browser.</strong> Open the link you were sent — it carries
+             the key — or paste one into <strong>Advanced → Connection</strong> below.`;
+    } else if (status === 401) {
+      why = `<strong>The key in this browser was rejected.</strong> It is most likely revoked:
+             re-provisioning a sandbox revokes every key issued for it before. Ask for a fresh link.
+             <span class="muted">(key ends …${esc(key.slice(-6))})</span>`;
+    } else if (status === 403) {
+      why = `<strong>That key is for a different tenant.</strong> ${esc(data?.error || "")}`;
+    } else {
+      why = `${esc(data?.error || "The gate did not answer.")} (HTTP ${status})`;
+    }
+    $("agentList").innerHTML = `<div class="card"><p>${why}</p></div>`;
     return;
   }
   agents = data.agents || [];
