@@ -1044,20 +1044,31 @@ function showLocked() {
   }
   const start = document.getElementById("start");
   if (!start) return;
-  start.insertAdjacentHTML(
-    "beforeend",
-    `<div class="card" style="margin-top:var(--s-24)">
-       <p><strong>This console needs a key.</strong></p>
-       <p class="small">It is the operator view of a running Charter gate — the register of agents,
-          every decision it made, and the proof that none of them were edited afterwards. None of
-          that is public, so it does not load without a credential.</p>
-       <p class="small">If someone sent you a link, open that link rather than this page: it carries
-          the key with it. Otherwise paste one into <strong>Advanced \u2192 Connection</strong> at the
-          bottom of this page.</p>
-       <p class="small" style="opacity:.7">Want to see Charter work without a key at all?
-          <a href="/">The home page</a> runs real decisions against this same gate.</p>
-     </div>`,
-  );
+
+  // Replace the section rather than appending to it. What was here is the landing page's headline
+  // and a "show me how it works" button — sales copy and a control that needs the very credential
+  // the visitor does not have. Leaving that above a small "needs a key" note produced a page that
+  // pitched the product, offered a dead button, and mentioned in passing that nothing would load.
+  // A locked door should look like a locked door.
+  start.innerHTML = `
+    <div class="section-head">
+      <p class="eyebrow"><span class="n">01</span> Operator console</p>
+      <h1><span style="display: block">This console needs a key.</span></h1>
+      <p class="lede">
+        It is the operator view of a running Charter gate: the register of every agent, each
+        decision the gate made, and the proof that none of them were edited afterwards.
+      </p>
+    </div>
+    <div class="card">
+      <p><strong>If someone sent you a link, open that link rather than this page.</strong>
+         It carries the key with it and sets this console up in one click.</p>
+      <p class="small">Otherwise paste a key into <strong>Advanced &rarr; Connection</strong> at the
+         bottom of this page.</p>
+      <p class="small" style="opacity:.75; margin-top: var(--s-12)">
+         None of this is public, which is the point — it is the record of who authorised what.
+         To watch Charter decide with no key at all, <a href="/">the home page</a> runs real
+         decisions against this same gate.</p>
+    </div>`;
 }
 
 async function boot() {
