@@ -121,7 +121,7 @@
            roughly 1460px of viewport while the column kept widening, so a 2000px screen showed
            320px of empty paper to the left of the text and the whole page read as zoomed out.
            52vw stays just inside the 54fr column, so the block still hugs the split line. */
-        max-width: clamp(760px, 52vw, 1400px);
+        max-width: clamp(760px, 52vw, 1800px);
         margin-left: auto;
         width: 100%;
       }
@@ -168,7 +168,7 @@
          box with 320px of empty paper beside it, which reads as a zoomed-out page rather than a
          design. Widening the box let the ceiling rise with it.
 
-         Checked at 1280/1440/1600/1920/2000/2560/3000: the tightest slack is ~32px at 1600.
+         Checked at 1280/1440/1600/1920/2000/2300/2560/3170/3840: tightest slack ~32px at 1600.
          Raising the cap WITHOUT widening the box overflows above ~1550px, so the two move together.
 
          Note for anyone re-measuring from a screenshot: browser ZOOM changes the CSS viewport, so a
@@ -176,7 +176,7 @@
          small. That looks identical to a broken breakpoint and is not one. Check innerWidth before
          changing anything here. */
       .hero h1 {
-        font-size: clamp(26px, 3.9vw, 76px);
+        font-size: clamp(26px, 3.9vw, 96px);
         line-height: 1.0;
         letter-spacing: -0.042em;
       }
