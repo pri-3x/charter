@@ -1059,15 +1059,20 @@ function showLocked() {
         decision the gate made, and the proof that none of them were edited afterwards.
       </p>
     </div>
+
     <div class="card">
-      <p><strong>If someone sent you a link, open that link rather than this page.</strong>
-         It carries the key with it and sets this console up in one click.</p>
-      <p class="small">Otherwise paste a key into <strong>Advanced &rarr; Connection</strong> at the
-         bottom of this page.</p>
-      <p class="small" style="opacity:.75; margin-top: var(--s-12)">
-         None of this is public, which is the point — it is the record of who authorised what.
-         To watch Charter decide with no key at all, <a href="/">the home page</a> runs real
-         decisions against this same gate.</p>
+      <p><strong>Don't have a key?</strong> Then this page is not the one you want — it is the
+         record of who authorised what, so it is not public.</p>
+      <p class="small"><a href="/">The home page</a> runs real decisions against this same gate with
+         no key at all: you can watch it allow a small refund, stop a large one, and hold a third for
+         a human. <a href="/#waitlist">Ask for access</a> if you want a console of your own.</p>
+    </div>
+
+    <div class="card" style="margin-top: var(--s-12)">
+      <p><strong>Have a key?</strong> Open the link you were sent rather than this page — it carries
+         the key and sets this console up in one click.</p>
+      <p class="small">If you have the key on its own, paste it into
+         <strong>Advanced &rarr; Connection</strong> at the bottom of this page.</p>
     </div>`;
 }
 
