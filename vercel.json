@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "test -f scripts/build-api.mjs || { echo \"Root Directory must be the repo root, not $(pwd)\"; exit 1; }; node scripts/build-api.mjs && node scripts/build-static.mjs",
+  "buildCommand": "d=$PWD; while [ ! -f \"$d/scripts/build-api.mjs\" ] && [ \"$d\" != / ]; do d=$(dirname \"$d\"); done; cd \"$d\" && node scripts/build-api.mjs && node scripts/build-static.mjs",
   "outputDirectory": "dist-web",
   "installCommand": "npm ci --include=dev",
   "headers": [
