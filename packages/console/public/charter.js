@@ -1053,27 +1053,56 @@ function showLocked() {
   start.innerHTML = `
     <div class="section-head">
       <p class="eyebrow"><span class="n">01</span> Operator console</p>
-      <h1><span style="display: block">This console needs a key.</span></h1>
+      <h1><span style="display: block">Try Charter with a sandbox of your own.</span></h1>
       <p class="lede">
-        It is the operator view of a running Charter gate: the register of every agent, each
-        decision the gate made, and the proof that none of them were edited afterwards.
+        This is the operator view of a running gate: the register of every agent, each decision it
+        made, and the proof that none of them were edited afterwards. One click gives you your own
+        agent to drive it with — nothing here is a mock-up.
       </p>
     </div>
 
-    <div class="card">
-      <p><strong>Don't have a key?</strong> Then this page is not the one you want — it is the
-         record of who authorised what, so it is not public.</p>
-      <p class="small"><a href="/">The home page</a> runs real decisions against this same gate with
-         no key at all: you can watch it allow a small refund, stop a large one, and hold a third for
-         a human. <a href="/#waitlist">Ask for access</a> if you want a console of your own.</p>
+    <div class="panel">
+      <div class="row">
+        <button class="primary big" id="sandboxBtn">Give me a sandbox</button>
+        <span class="cap" id="sandboxNote">Takes a second · your own agent, ₹1,00,000/day to play with</span>
+      </div>
+      <ul class="small" style="margin: var(--s-16) 0 0; padding-left: var(--s-16); line-height: 1.9">
+        <li>Ask for a ₹200 refund — allowed, and on the record a moment later</li>
+        <li>Ask for ₹80,000 — held, because no one person may approve that alone</li>
+        <li>Try to delete a record — refused outright, whatever you say to it</li>
+        <li>Then check the whole chain yourself, in your own browser</li>
+      </ul>
     </div>
 
-    <div class="card" style="margin-top: var(--s-12)">
-      <p><strong>Have a key?</strong> Open the link you were sent rather than this page — it carries
-         the key and sets this console up in one click.</p>
-      <p class="small">If you have the key on its own, paste it into
-         <strong>Advanced &rarr; Connection</strong> at the bottom of this page.</p>
-    </div>`;
+    <p class="small" style="margin-top: var(--s-16); opacity: .7">
+      Already have a key? Open the link you were sent — it sets this up in one click. Or paste the
+      key into <strong>Advanced &rarr; Connection</strong> below.
+    </p>`;
+
+  const btn = document.getElementById("sandboxBtn");
+  const note = document.getElementById("sandboxNote");
+  btn?.addEventListener("click", async () => {
+    btn.disabled = true;
+    note.textContent = "making you a sandbox…";
+    const { status, data } = await api("/v1/demo/sandbox", { method: "POST" });
+    if (status !== 200 || !data?.admin_key) {
+      btn.disabled = false;
+      // Say which failure it was: a deployment without a sandbox is a different problem from a
+      // visitor who has clicked too many times, and the remedy differs.
+      note.textContent =
+        status === 429
+          ? "too many requests just now — try again in a moment"
+          : status === 503
+            ? "this deployment has no sandbox provisioned"
+            : `could not create a sandbox (${status})`;
+      return;
+    }
+    store.save("admin", data.admin_key);
+    store.save("agents", JSON.stringify({ [data.agent_id]: data.agent_key }));
+    localStorage.removeItem("chr_tenant"); // the key carries its own tenant
+    note.textContent = "ready — opening your console…";
+    location.reload();
+  });
 }
 
 async function boot() {
