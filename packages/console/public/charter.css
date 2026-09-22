@@ -1063,3 +1063,48 @@ footer {
   padding: 0 !important;
   height: auto !important;
 }
+
+/* The four outcomes on the locked console. Laid out as a record rather than a bullet list: verdict,
+   action and reason in fixed columns, on a paper surface inside the recessed panel, so it reads as
+   a preview of the ledger the visitor is about to go and look at — and so the verdict words are
+   already familiar when they meet them for real. */
+.lockdemo {
+  display: grid;
+  margin-top: var(--s-16);
+  background: var(--paper);
+  border: var(--edge);
+  border-radius: var(--r-8);
+  overflow: hidden;
+}
+.lockdemo > div {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 168px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-12);
+  padding: var(--s-12) var(--s-16);
+  border-top: var(--edge);
+}
+.lockdemo > div:first-child {
+  border-top: 0;
+}
+.lockdemo .badge {
+  justify-content: center;
+  width: 100%;
+}
+.lockdemo b {
+  font-weight: 500;
+}
+.lockdemo span:last-child {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .lockdemo > div {
+    grid-template-columns: 68px minmax(0, 1fr);
+    row-gap: var(--s-4);
+  }
+  /* The reason drops under the action rather than being squeezed into a third of a phone. */
+  .lockdemo span:last-child {
+    grid-column: 2;
+  }
+}

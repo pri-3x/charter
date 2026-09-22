@@ -1053,28 +1053,30 @@ function showLocked() {
   start.innerHTML = `
     <div class="section-head">
       <p class="eyebrow"><span class="n">01</span> Operator console</p>
-      <h1><span style="display: block">Try Charter with a sandbox of your own.</span></h1>
+      <h1><span style="display: block">Try Charter on a sandbox</span><span style="display: block">of your own.</span></h1>
       <p class="lede">
-        This is the operator view of a running gate: the register of every agent, each decision it
-        made, and the proof that none of them were edited afterwards. One click gives you your own
-        agent to drive it with — nothing here is a mock-up.
+        The operator view of a running gate: every agent, every decision it made, and proof that
+        none of it was edited afterwards. One click gives you an agent to drive it with.
       </p>
     </div>
 
     <div class="panel">
-      <div class="row">
+      <div class="row" style="align-items: center">
         <button class="primary big" id="sandboxBtn">Give me a sandbox</button>
-        <span class="cap" id="sandboxNote">Takes a second · your own agent, ₹1,00,000/day to play with</span>
+        <span class="cap" id="sandboxNote">Your own tenant · &#8377;1,00,000/day · nothing shared</span>
       </div>
-      <ul class="small" style="margin: var(--s-16) 0 0; padding-left: var(--s-16); line-height: 1.9">
-        <li>Ask for a ₹200 refund — allowed, and on the record a moment later</li>
-        <li>Ask for ₹80,000 — held, because no one person may approve that alone</li>
-        <li>Try to delete a record — refused outright, whatever you say to it</li>
-        <li>Then check the whole chain yourself, in your own browser</li>
-      </ul>
+
+      <!-- The four outcomes in Charter's own language rather than as a bullet list: a visitor should
+           recognise the verdicts on this screen when they see them again in the record. -->
+      <div class="lockdemo">
+        <div><span class="badge badge-green">ALLOW</span><b>Refund &#8377;200</b><span>inside the limit — it just happens</span></div>
+        <div><span class="badge badge-amber">HOLD</span><b>Refund &#8377;80,000</b><span>too large for one person to approve alone</span></div>
+        <div><span class="badge badge-red">DENY</span><b>Delete a record</b><span>forbidden outright, whatever it is told</span></div>
+        <div><span class="badge badge-grey">PROOF</span><b>Check the chain</b><span>recomputed in your browser, not ours</span></div>
+      </div>
     </div>
 
-    <p class="small" style="margin-top: var(--s-16); opacity: .7">
+    <p class="small" style="margin-top: var(--s-16); opacity: .68">
       Already have a key? Open the link you were sent — it sets this up in one click. Or paste the
       key into <strong>Advanced &rarr; Connection</strong> below.
     </p>`;
