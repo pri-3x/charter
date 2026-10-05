@@ -211,3 +211,53 @@ mis-report it.
 Takes a hold id and **nothing else**: the params are replayed from the immutable verdict entry, so
 an approval for ₹500 cannot be spent as ₹500,000. 409 if the hold is not APPROVED (PENDING
 included) or if the approval was already executed; 403 if it belongs to another agent.
+
+# MCP gateway (M8)
+
+Charter as an MCP server, so an agent is governed by changing a config block rather than wrapping
+every tool by hand. `tools/call` re-enters `POST /v1/proxy/:tool` in process: the same registry
+check, authority check, policy evaluation, limit counters, hold creation, ledger commit and
+credential custody as any other call. There is one implementation of "may this happen"; this is a
+second doorway onto it, not a second opinion.
+
+## POST /mcp   (agent key as bearer)
+JSON-RPC 2.0 over streamable HTTP, request/response only — no SSE, no session store. A single
+request returns a single response; a batch returns an array; notifications return **202** with no
+body. `GET /mcp` returns **405**: Charter never initiates a stream.
+
+Client configuration is one block:
+
+```json
+{ "mcpServers": { "charter": { "url": "https://usecharter.xyz/mcp",
+                               "headers": { "Authorization": "Bearer chr_..." } } } }
+```
+
+**`initialize`** — negotiates the protocol version (the client's if supported, else the newest
+Charter speaks) and returns instructions telling the model that a refusal is a decision, not a fault.
+
+**`tools/list`** — the tools this agent may call: registered with an ACTIVE credential, inside its
+authority's `allowed_tools`, not in `forbidden_ops`, and carrying an `input_schema`. A tool without
+a schema is withheld rather than advertised — a tool a model cannot call correctly produces a denied
+action and a confused agent, which is worse than a shorter list. `charter_await_approval` is
+appended when anything is advertised.
+
+**`tools/call`** — the verdict, shaped for a model:
+
+| Verdict | Returned as |
+|---|---|
+| ALLOW | the upstream response, `_meta.charter.entry_id` alongside |
+| DENY | `isError: true`, the reason and rule id, and "do not retry it unchanged" |
+| ESCALATE | `isError: true`, the hold id, and "do not retry — a second attempt creates a second request" |
+
+DENY and ESCALATE are tool **results**, not JSON-RPC errors: the request was well-formed, the answer
+is no, and the model needs the reason in context so it can tell the user the truth.
+
+**`charter_await_approval`** — `{ hold_id }`. Answers immediately with PENDING / REJECTED / EXPIRED,
+or executes an APPROVED hold through `/v1/proxy/resume`, where the params come from the ledger entry.
+An approval is for what was approved; the model cannot substitute an amount after the fact.
+
+## Registering a tool for MCP
+`POST /v1/credentials` gains three optional fields — `title`, `description`, `input_schema`
+(JSON Schema, forwarded verbatim). Without `input_schema` the tool still works over `/v1/proxy` and
+is simply not advertised. `GET /v1/credentials` reports `mcp: "advertised"` or
+`"hidden (no input_schema registered)"` per tool. Rotating a secret does not clear the descriptors.

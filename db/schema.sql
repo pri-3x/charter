@@ -133,6 +133,12 @@ CREATE TABLE tool_credentials (
   created_at    timestamptz NOT NULL DEFAULT now(),
   revoked_at    timestamptz,
   registered_entry_id text NOT NULL,
+  -- What a MODEL needs to call this tool (0005). Nullable: a tool without them still works over
+  -- /v1/proxy but is not advertised over MCP, because a tool a model cannot call correctly is
+  -- worse than a tool it cannot see.
+  title         text,
+  description   text,
+  input_schema  jsonb,                     -- JSON Schema, forwarded verbatim as MCP inputSchema
   PRIMARY KEY (tenant_id, tool)
 );
 CREATE INDEX tool_credentials_status ON tool_credentials(tenant_id, status);

@@ -120,3 +120,24 @@ C11 An approval executes exactly once; the second resume is a 409 and sends noth
 C12 Revocation bites on the next call, not at a cache expiry.
 C13 A4 revisited: the only credential the agent holds is its Charter API key, which is not the
     tool's credential — the secret never left Charter.
+
+## Layer 5 — MCP gateway (C14–C24) — `tests/integration/m8.mcp.test.ts`
+The claim is not that the server speaks JSON-RPC; it is that a call arriving over MCP is governed by
+the same machinery as one arriving over `/v1/actions/check`. Each test asserts on the gate's
+behaviour through the MCP doorway — what the upstream received, what the ledger recorded, and what
+the model is told when the answer is no.
+
+C14 `initialize` returns the client's protocol version when Charter speaks it.
+C15 … and Charter's newest when it does not.
+C16 A notification is answered with 202 and an empty body.
+C17 An unauthenticated client gets 401 with a JSON-RPC body it can display.
+C18 A malformed request gets -32600 rather than a crash.
+C19 `tools/list` shows only tools inside the agent's grant that have a live credential; a forbidden
+    operation never appears.
+C20 Each tool carries the description and input schema a model needs to call it correctly.
+C21 ALLOW: the upstream receives Charter's credential and the authorised params; the secret appears
+    nowhere in what the model sees.
+C22 DENY arrives as a tool result with `isError`, not a protocol error, and the upstream is not called.
+C23 ESCALATE returns the hold id and tells the model not to retry — nothing leaves the gate.
+C24 An approved hold executes exactly once, with the amount from the LEDGER rather than one the model
+    could substitute afterwards.

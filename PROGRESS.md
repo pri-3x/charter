@@ -850,3 +850,59 @@ history to a point in time, so sealing once a day leaves up to 24h un-anchored a
 The new cases sit after S15 in `m3.scenarios.test.ts`, which suspends the agent and relies on the
 file-level `afterAll` to restore it. Anything appended after S15 therefore runs against a suspended
 agent and sees DENY. The block restores the agent in its own `beforeAll`.
+
+---
+
+## M8 — MCP gateway
+
+The adoption problem M7 left behind: credential custody makes the gate enforceable, but a team still
+has to wrap every tool by hand to get there. MCP is the boundary that removes the wrapping.
+
+### The shape
+
+Charter is now an MCP server. The whole design is in what it does *not* contain: no policy logic, no
+ledger writes, no egress. `tools/call` re-enters `POST /v1/proxy/:tool` in process, so an MCP call
+goes through the same registry check, authority check, policy evaluation, limit counters, hold
+creation, ledger commit and credential custody as every other call. One implementation of "may this
+happen", reached through a second doorway.
+
+- `mcp/protocol.ts` — JSON-RPC shapes, version negotiation, tool-result helpers. No gate knowledge.
+- `mcp/server.ts` — method dispatch, the advertise query, verdict → model-readable result.
+- `mcp/routes.ts` — streamable HTTP. POST only; a batch returns an array; notifications return 202.
+- Migration 0005 — `title`, `description`, `input_schema` on `tool_credentials`.
+
+### Decisions worth recording
+
+**It advertises what it can carry out, not what exists.** `tools/list` is the intersection of three
+things: a live credential, the agent's `allowed_tools`, and an `input_schema`. A tool without a
+schema is *withheld* — advertising something a model cannot call correctly yields a denied action and
+a confused agent, which is worse than a shorter list. The same query gates calling, so a tool cannot
+be reached by guessing its name.
+
+**DENY and ESCALATE are tool results, not JSON-RPC errors.** The request was well-formed; the answer
+is no. A protocol error tells the model its request was broken and invites a retry; a result with
+`isError` puts the reason in context so it can tell the user the truth. The ESCALATE text says
+explicitly not to retry, because a second call creates a second request rather than approving the
+first — the single most likely way an agent would misread a hold.
+
+**No SSE, no session store.** The spec permits answering a POST with one JSON response, and every
+Charter call is request/response — a verdict is one round trip, and a held action returns a hold id
+rather than streaming for four hours. A stream would add a thing to go wrong in exchange for nothing.
+
+**`charter_await_approval` executes through `/v1/proxy/resume`,** so an approved hold runs with the
+params from the ledger entry. The model cannot substitute an amount after a human has approved one.
+
+### Verification
+
+11 integration tests (C14–C24), green on the first run, and 92 integration tests overall from a
+clean chain. Then exercised as a real MCP server over HTTP against an external upstream: handshake
+negotiated 2025-06-18, `tools/list` returned `refund` + `charter_await_approval`, a ₹200 call came
+back ALLOW with a real `entry_id`, and ₹80,000 came back ESCALATE with a hold id and the don't-retry
+instruction.
+
+### Not done
+
+Charter advertises tools it holds credentials for; it does not yet proxy OTHER MCP servers. For a
+team whose tools already live behind an MCP server, that is the remaining step — aggregate upstream
+`tools/list` and forward `tools/call` after the verdict. The gate work is identical; it is the
+upstream connection management that is new.

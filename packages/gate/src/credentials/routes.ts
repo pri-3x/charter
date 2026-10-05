@@ -42,6 +42,12 @@ const registerSchema = z.object({
   auth_header: z.string().min(1).optional(),
   secret: z.string().min(1),
   by_principal: z.string().min(1),
+  // What a model needs to call this tool over MCP. Optional: a tool without them still works over
+  // /v1/proxy, it is simply not advertised, because advertising a tool a model cannot call
+  // correctly produces a denied action and a confused agent.
+  title: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  input_schema: z.record(z.unknown()).optional(),
 }).strict().superRefine((v, ctx) => {
   if (v.auth_scheme === "header" && !v.auth_header) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["auth_header"],
@@ -118,6 +124,9 @@ export function registerCredentialRoutes(app: FastifyInstance, deps: CredentialD
       authHeader: b.auth_header,
       secret: b.secret,
       byPrincipal: b.by_principal,
+      ...(b.title ? { title: b.title } : {}),
+      ...(b.description ? { description: b.description } : {}),
+      ...(b.input_schema ? { inputSchema: b.input_schema } : {}),
     });
     // The response echoes the fingerprint, never the secret — including on the request that set it.
     return reply.code(200).send({
@@ -144,6 +153,8 @@ export function registerCredentialRoutes(app: FastifyInstance, deps: CredentialD
         ...(c.authHeader ? { auth_header: c.authHeader } : {}),
         key_fingerprint: c.fingerprint,
         status: c.status,
+        // Whether this tool is visible over MCP, and why not when it is not.
+        mcp: c.inputSchema ? "advertised" : "hidden (no input_schema registered)",
       })),
     });
   });

@@ -16,7 +16,14 @@ import type { EgressBinding } from "./crypto.js";
 export type AuthScheme = "bearer" | "header" | "basic";
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-export interface CredentialDescriptor {
+export interface ToolDescriptor {
+  /** Human name, description and JSON Schema — what a MODEL needs to call the tool correctly. */
+  title?: string | undefined;
+  description?: string | undefined;
+  inputSchema?: Record<string, unknown> | undefined;
+}
+
+export interface CredentialDescriptor extends ToolDescriptor {
   tenant: string;
   tool: string;
   endpointUrl: string;
@@ -44,6 +51,9 @@ interface Row {
   secret_tag: Buffer;
   secret_fp: string;
   status: "ACTIVE" | "REVOKED";
+  title: string | null;
+  description: string | null;
+  input_schema: Record<string, unknown> | null;
 }
 
 export class CredentialNotFoundError extends Error {
@@ -72,7 +82,7 @@ export async function registerCredential(
     authHeader?: string | undefined;
     secret: string;
     byPrincipal: string;
-  },
+  } & ToolDescriptor,
 ): Promise<{ entryId: string; fingerprint: string; rotated: boolean }> {
   // Bind the secret to exactly this destination (see crypto.ts): if the URL is later edited in the
   // database, the credential stops decrypting instead of being delivered somewhere new.
@@ -100,8 +110,9 @@ export async function registerCredential(
     await client.query(
       `INSERT INTO tool_credentials
          (tenant_id, tool, endpoint_url, method, auth_scheme, auth_header,
-          secret_ct, secret_iv, secret_tag, secret_fp, status, revoked_at, registered_entry_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVE',NULL,$11)
+          secret_ct, secret_iv, secret_tag, secret_fp, status, revoked_at, registered_entry_id,
+          title, description, input_schema)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVE',NULL,$11,$12,$13,$14)
        ON CONFLICT (tenant_id, tool) DO UPDATE SET
          endpoint_url = EXCLUDED.endpoint_url,
          method       = EXCLUDED.method,
@@ -113,10 +124,17 @@ export async function registerCredential(
          secret_fp    = EXCLUDED.secret_fp,
          status       = 'ACTIVE',
          revoked_at   = NULL,
-         registered_entry_id = EXCLUDED.registered_entry_id`,
+         registered_entry_id = EXCLUDED.registered_entry_id,
+         -- Descriptors are only overwritten when supplied, so rotating a secret does not silently
+         -- un-advertise a tool over MCP.
+         title        = COALESCE(EXCLUDED.title, tool_credentials.title),
+         description  = COALESCE(EXCLUDED.description, tool_credentials.description),
+         input_schema = COALESCE(EXCLUDED.input_schema, tool_credentials.input_schema)`,
       [
         input.tenant, input.tool, input.endpointUrl, input.method, input.authScheme,
         input.authHeader ?? null, sealed.ct, sealed.iv, sealed.tag, sealed.fingerprint, entryId,
+        input.title ?? null, input.description ?? null,
+        input.inputSchema ? JSON.stringify(input.inputSchema) : null,
       ],
     );
 
@@ -190,7 +208,8 @@ export async function revokeCredential(
 /** Descriptors only — no secrets, no ciphertext. This is what an admin list endpoint may return. */
 export async function listCredentials(pool: Pool, tenant: string): Promise<CredentialDescriptor[]> {
   const res = await pool.query<Row>(
-    `SELECT tenant_id, tool, endpoint_url, method, auth_scheme, auth_header, secret_fp, status
+    `SELECT tenant_id, tool, endpoint_url, method, auth_scheme, auth_header, secret_fp, status,
+            title, description, input_schema
        FROM tool_credentials WHERE tenant_id = $1 ORDER BY tool`,
     [tenant],
   );
@@ -203,6 +222,9 @@ export async function listCredentials(pool: Pool, tenant: string): Promise<Crede
     authHeader: r.auth_header ?? undefined,
     fingerprint: r.secret_fp,
     status: r.status,
+    title: r.title ?? undefined,
+    description: r.description ?? undefined,
+    inputSchema: r.input_schema ?? undefined,
   }));
 }
 

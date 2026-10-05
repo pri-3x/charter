@@ -93,9 +93,14 @@ does not become logged, it becomes impossible, because the agent has nothing to 
 Pattern A is unchanged and A4 still holds for it (D1 named Pattern B as v1; this is that v1).
 Acceptance: C1–C13 in TEST_PLAN.
 
+## M8 — MCP gateway  ✅
+Charter as an MCP server. `tools/list` advertises exactly what an agent is authorised to call AND
+Charter holds a credential for; `tools/call` re-enters `/v1/proxy/:tool`, so an MCP call is governed
+by the same code as any other. Adoption becomes a config block rather than wrapping every tool by
+hand — and because the credential stays with Charter, an agent pointed here cannot reach anything
+else, having nothing else to reach it with. Acceptance: C14–C24 in TEST_PLAN.
+
 ## Next (not built)
-- **MCP gateway.** The tool boundary the market is standardizing on; a drop-in enforcement point that
-  does not ask a team to wrap every tool by hand.
 - **Bypass detection** for whatever is still on Pattern A: reconcile tool-side counters against the
   ledger and alarm on the gap, so an unguarded path is at least *visible* rather than silent. M7
   closes this for any tool moved under custody — but a tool whose credential Charter does not hold

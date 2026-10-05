@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import { registerRoutes } from "./routes.js";
 import { registerDemoRoutes } from "./demo.js";
 import { registerCredentialRoutes } from "./credentials/routes.js";
+import { registerMcpRoutes } from "./mcp/routes.js";
 import { PolicyStore } from "./policy/store.js";
 import type { Pool } from "./db.js";
 
@@ -113,6 +114,15 @@ export async function buildApp(
     ...(deps.credentialKey ? { credentialKey: deps.credentialKey } : {}),
     ...(deps.allowLoopbackEgress ? { allowLoopbackEgress: deps.allowLoopbackEgress } : {}),
     defaultTenant: deps.demoTenant ?? "acme-fintech",
+  });
+
+  // MCP. Registered unconditionally so a client gets a protocol-shaped answer either way; without
+  // custody configured tools/list is simply empty, because a tool Charter holds no credential for
+  // is one it cannot carry out.
+  registerMcpRoutes(app, {
+    pool: deps.pool,
+    adminKey: deps.adminKey,
+    custodyEnabled: Boolean(deps.credentialKey),
   });
   return app;
 }
