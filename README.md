@@ -102,3 +102,13 @@ your browser). Then:
 - Policy rules match on tool and parameter values, not semantics: `update_record status=deleted` is
   allowed and merely *evidenced* (**A3**), which is documented rather than papered over.
 - Charter evidences controls. It does not certify compliance — an assessor does that.
+
+## Security
+
+Found something? Please don't open a public issue — use *Security → Report a vulnerability* on this
+repository, or `security@usecharter.xyz`. [SECURITY.md](SECURITY.md) sets out what's in scope, what
+Charter does and does not claim to defend against, and the gaps that are already known.
+
+## License
+
+[Apache License 2.0](LICENSE). Use it, fork it, ship it — the patent grant comes with it.
