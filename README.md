@@ -91,6 +91,33 @@ your browser). Then:
 | `npm run tamper-demo` | Edits a committed record and shows the verifier catching it |
 | `npm run verify` | The independent verifier (own JCS, hashing, Merkle, Ed25519) |
 
+## Connect an agent over MCP
+
+Charter is an MCP server, so an agent is governed by changing a config block rather than by wrapping
+every tool call by hand:
+
+```json
+{ "mcpServers": { "charter": { "url": "https://usecharter.xyz/mcp",
+                               "headers": { "Authorization": "Bearer chr_..." } } } }
+```
+
+JSON-RPC 2.0 over streamable HTTP — request/response only, no SSE and no session store. The bearer
+token is the agent's own Charter key, so the registry, charter and authority grant all apply
+unchanged.
+
+`tools/list` returns the *intersection* of a live credential, the agent's `allowed_tools`, and a
+registered `input_schema` — the agent is shown exactly the tools Charter will carry out for it, and
+holds no credential to reach anything else with. A tool with no schema is withheld rather than
+advertised, because a tool a model cannot call correctly is worse than a shorter list.
+
+`tools/call` re-enters `POST /v1/proxy/:tool` in process, so an MCP call gets the same policy
+evaluation, limit counters, hold creation and ledger commit as any other. **DENY and ESCALATE come
+back as tool results with `isError`, not as JSON-RPC errors** — the request was well formed, the
+answer is no, and a protocol error would invite a retry. An escalation returns a hold id and says
+not to retry: a second call creates a second request, it does not approve the first.
+
+Full contract in [docs/API.md](docs/API.md#mcp-gateway-m8).
+
 ## Honest limits of this build
 
 - **Enforcement is integration-shaped.** An agent that never calls the gate is not governed by it —
