@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.pri-3x/charter",
+  "title": "Charter",
+  "description": "Runtime authorization gate and tamper-evident audit ledger for AI agent tool calls",
+  "repository": {
+    "url": "https://github.com/pri-3x/charter",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://usecharter.xyz",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://usecharter.xyz/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Charter agent API key as a bearer token: 'Bearer <agent key>'. The key identifies the agent, and its charter and authority grant decide which tools appear in tools/list.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

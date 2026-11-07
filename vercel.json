@@ -35,6 +35,15 @@
       ]
     },
     {
+      "source": "/mcp",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
       "source": "/healthz",
       "headers": [
         {
@@ -99,6 +108,10 @@
   "rewrites": [
     {
       "source": "/healthz",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/mcp",
       "destination": "/api/index"
     },
     {
